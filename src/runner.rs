@@ -42,7 +42,9 @@ impl DefaultTestRunner {
         for ch in name.chars() {
             if ch.is_ascii_alphanumeric() {
                 slug.push(ch.to_ascii_lowercase());
-            } else if (ch.is_whitespace() || matches!(ch, '-' | '_')) && !slug.ends_with('_') {
+            } else if (ch.is_whitespace() || matches!(ch, '-' | '_'))
+                && !slug.ends_with('_')
+            {
                 slug.push('_');
             }
         }
@@ -57,7 +59,10 @@ impl DefaultTestRunner {
         Value::Object(obj)
     }
 
-    fn get_value_by_path<'a>(value: &'a Value, path: &str) -> Option<&'a Value> {
+    fn get_value_by_path<'a>(
+        value: &'a Value,
+        path: &str,
+    ) -> Option<&'a Value> {
         let mut current = value;
 
         if path.is_empty() {
@@ -86,7 +91,11 @@ impl DefaultTestRunner {
         Some(current)
     }
 
-    fn flatten_value(prefix: &str, value: &Value, vars: &mut HashMap<String, Value>) {
+    fn flatten_value(
+        prefix: &str,
+        value: &Value,
+        vars: &mut HashMap<String, Value>,
+    ) {
         match value {
             Value::Object(map) => {
                 if map.is_empty() {
@@ -121,7 +130,11 @@ impl DefaultTestRunner {
     ///
     /// Uses a single pre-compiled regex instead of compiling one
     /// regex per variable, reducing O(V) regex compilations to O(1).
-    fn expand_variables(&self, text: &str, vars: &HashMap<String, Value>) -> String {
+    fn expand_variables(
+        &self,
+        text: &str,
+        vars: &HashMap<String, Value>,
+    ) -> String {
         use std::sync::LazyLock;
 
         // Single regex that matches {{ key }} or {{ vars.key }}
@@ -245,7 +258,8 @@ impl DefaultTestRunner {
 
         // TODO: add English comment
         debug!("Sending request to {}", url);
-        let response = req_builder.send().await.context("Failed to send request")?;
+        let response =
+            req_builder.send().await.context("Failed to send request")?;
         debug!("Received response with status: {}", response.status());
 
         Ok((response, req_info))
@@ -263,8 +277,8 @@ impl DefaultTestRunner {
         }
 
         // TODO: add English comment
-        let json_body: Value =
-            serde_json::from_str(body).context("Failed to parse response as JSON")?;
+        let json_body: Value = serde_json::from_str(body)
+            .context("Failed to parse response as JSON")?;
 
         for (var_name, json_path) in save {
             // TODO: add English comment
@@ -275,12 +289,17 @@ impl DefaultTestRunner {
                 if let Some(value) = current.get(part) {
                     current = value;
                 } else {
-                    return Err(anyhow!("JSON path '{json_path}' not found in response"));
+                    return Err(anyhow!(
+                        "JSON path '{json_path}' not found in response"
+                    ));
                 }
             }
 
             vars.insert(var_name.clone(), current.clone());
-            debug!("Saved variable '{}' with value: {:?}", var_name, current);
+            debug!(
+                "Saved variable '{}' with value: {:?}",
+                var_name, current
+            );
         }
 
         Ok(())
@@ -320,7 +339,8 @@ impl TestRunner for DefaultTestRunner {
 
             // TODO: add English comment
             if let Some(condition) = &step.condition {
-                let expanded_condition = self.expand_variables(condition, &vars);
+                let expanded_condition =
+                    self.expand_variables(condition, &vars);
                 if expanded_condition.trim().to_lowercase() != "true" {
                     debug!("Skipping step due to condition: {}", condition);
                     continue;
@@ -336,7 +356,8 @@ impl TestRunner for DefaultTestRunner {
                 Ok(res) => res,
                 Err(err) => {
                     error!("Failed to send request: {}", err);
-                    step_error = Some(format!("リクエスト送信エラー: {err}"));
+                    step_error =
+                        Some(format!("リクエスト送信エラー: {err}"));
 
                     step_results.push(StepResult {
                         name: step.name.clone(),
@@ -344,12 +365,14 @@ impl TestRunner for DefaultTestRunner {
                         error: step_error,
                         request: RequestInfo {
                             method: format!("{:?}", step.request.method),
-                            url: self.expand_variables(&step.request.url, &vars),
+                            url: self
+                                .expand_variables(&step.request.url, &vars),
                             headers: HashMap::new(),
                             body: None,
                         },
                         response: None,
-                        duration_ms: step_start.elapsed().as_millis() as u64,
+                        duration_ms: step_start.elapsed().as_millis()
+                            as u64,
                     });
 
                     if !scenario.config.continue_on_failure {
@@ -365,7 +388,12 @@ impl TestRunner for DefaultTestRunner {
             let headers: HashMap<String, String> = response
                 .headers()
                 .iter()
-                .map(|(name, value)| (name.to_string(), value.to_str().unwrap_or("").to_string()))
+                .map(|(name, value)| {
+                    (
+                        name.to_string(),
+                        value.to_str().unwrap_or("").to_string(),
+                    )
+                })
                 .collect();
 
             // TODO: add English comment
@@ -403,9 +431,10 @@ impl TestRunner for DefaultTestRunner {
                 parsed_json
                     .as_ref()
                     .and_then(|json| match json {
-                        Value::Object(obj) => {
-                            obj.get("data").cloned().or_else(|| Some(json.clone()))
-                        }
+                        Value::Object(obj) => obj
+                            .get("data")
+                            .cloned()
+                            .or_else(|| Some(json.clone())),
                         _ => Some(json.clone()),
                     })
                     .unwrap_or(Value::Null)
@@ -413,8 +442,14 @@ impl TestRunner for DefaultTestRunner {
 
             let request_value = {
                 let mut req_map = Map::new();
-                req_map.insert("method".into(), Value::String(req_info.method.clone()));
-                req_map.insert("url".into(), Value::String(req_info.url.clone()));
+                req_map.insert(
+                    "method".into(),
+                    Value::String(req_info.method.clone()),
+                );
+                req_map.insert(
+                    "url".into(),
+                    Value::String(req_info.url.clone()),
+                );
                 if !req_info.headers.is_empty() {
                     req_map.insert(
                         "headers".into(),
@@ -422,15 +457,22 @@ impl TestRunner for DefaultTestRunner {
                     );
                 }
                 if let Some(body) = &req_info.body {
-                    req_map.insert("body".into(), Value::String(body.clone()));
+                    req_map
+                        .insert("body".into(), Value::String(body.clone()));
                 }
                 Value::Object(req_map)
             };
 
             let mut response_map = Map::new();
-            response_map.insert("status".into(), Value::Number(Number::from(status)));
+            response_map.insert(
+                "status".into(),
+                Value::Number(Number::from(status)),
+            );
             if !headers.is_empty() {
-                response_map.insert("headers".into(), Self::map_string_to_value(&headers));
+                response_map.insert(
+                    "headers".into(),
+                    Self::map_string_to_value(&headers),
+                );
             }
             response_map.insert("body".into(), Value::String(body.clone()));
             if let Some(json) = &parsed_json {
@@ -438,11 +480,15 @@ impl TestRunner for DefaultTestRunner {
             }
             let response_value = Value::Object(response_map);
 
-            let mut step_key = step.id.clone().unwrap_or_else(|| Self::slugify(&step.name));
+            let mut step_key = step
+                .id
+                .clone()
+                .unwrap_or_else(|| Self::slugify(&step.name));
             if step_key.is_empty() {
                 step_key = format!("step{}", step_idx + 1);
             }
-            let count_entry = step_key_counts.entry(step_key.clone()).or_insert(0);
+            let count_entry =
+                step_key_counts.entry(step_key.clone()).or_insert(0);
             if *count_entry > 0 {
                 step_key = format!("{}_{}", step_key, *count_entry + 1);
             }
@@ -468,12 +514,16 @@ impl TestRunner for DefaultTestRunner {
                     }
                 } else {
                     step_success = false;
-                    step_error = Some(format!("ヘッダー '{name}' がレスポンスに存在しません"));
+                    step_error = Some(format!(
+                        "ヘッダー '{name}' がレスポンスに存在しません"
+                    ));
                 }
             }
 
             // TODO: add English comment
-            if !step.expect.json.is_empty() || !step.expect.json_lengths.is_empty() {
+            if !step.expect.json.is_empty()
+                || !step.expect.json_lengths.is_empty()
+            {
                 if let Some(json_body) = &parsed_json {
                     for (path, expected) in &step.expect.json {
                         match Self::get_value_by_path(json_body, path) {
@@ -528,16 +578,21 @@ impl TestRunner for DefaultTestRunner {
                     }
                 } else {
                     step_success = false;
-                    step_error = Some("レスポンスが有効なJSONではありません".to_string());
+                    step_error = Some(
+                        "レスポンスが有効なJSONではありません".to_string(),
+                    );
                 }
             }
 
             // json_eq — full equality check
             if let Some(ref exact_expected) = step.expect.json_eq {
                 if let Some(json_body) = &parsed_json {
-                    let expanded_json = serde_json::to_string(exact_expected)?;
-                    let expanded_str = self.expand_variables(&expanded_json, &vars);
-                    let expanded: Value = serde_json::from_str(&expanded_str)?;
+                    let expanded_json =
+                        serde_json::to_string(exact_expected)?;
+                    let expanded_str =
+                        self.expand_variables(&expanded_json, &vars);
+                    let expanded: Value =
+                        serde_json::from_str(&expanded_str)?;
                     let exact_errors = crate::validator::validate_data_eq(
                         json_body,
                         &expanded,
@@ -550,7 +605,9 @@ impl TestRunner for DefaultTestRunner {
                     }
                 } else {
                     step_success = false;
-                    step_error = Some("json_eq: response is not valid JSON".to_string());
+                    step_error = Some(
+                        "json_eq: response is not valid JSON".to_string(),
+                    );
                 }
             }
 
@@ -570,12 +627,20 @@ impl TestRunner for DefaultTestRunner {
             }
 
             // SSE validation
-            if let (Some(sse_expect), Some(ref events)) = (&step.expect.sse, &sse_events) {
+            if let (Some(sse_expect), Some(ref events)) =
+                (&step.expect.sse, &sse_events)
+            {
                 let vars_clone = vars.clone();
-                let expand_fn = |s: &str| -> String { self.expand_variables(s, &vars_clone) };
-                let (sse_errors, sse_saved) = sse::validate_sse(events, sse_expect, &expand_fn);
+                let expand_fn = |s: &str| -> String {
+                    self.expand_variables(s, &vars_clone)
+                };
+                let (sse_errors, sse_saved) =
+                    sse::validate_sse(events, sse_expect, &expand_fn);
                 for err in &sse_errors {
-                    error!("SSE validation error (step: {}): {}", step.name, err);
+                    error!(
+                        "SSE validation error (step: {}): {}",
+                        step.name, err
+                    );
                 }
                 if !sse_errors.is_empty() {
                     step_success = false;
@@ -594,19 +659,28 @@ impl TestRunner for DefaultTestRunner {
                 if sse_events.is_some() {
                     let sse_value = &outputs_value;
                     for (var_name, path) in &step.save {
-                        let actual_path = if let Some(stripped) = path.strip_prefix("sse.") {
+                        let actual_path = if let Some(stripped) =
+                            path.strip_prefix("sse.")
+                        {
                             stripped
                         } else {
                             path.as_str()
                         };
-                        if let Some(val) = Self::get_value_by_path(sse_value, actual_path) {
+                        if let Some(val) =
+                            Self::get_value_by_path(sse_value, actual_path)
+                        {
                             vars.insert(var_name.clone(), val.clone());
-                            debug!("Saved SSE variable '{}' = {:?}", var_name, val);
+                            debug!(
+                                "Saved SSE variable '{}' = {:?}",
+                                var_name, val
+                            );
                         } else {
                             warn!("SSE save path '{}' not found", path);
                         }
                     }
-                } else if let Err(err) = self.save_variables(&step.save, &body, &mut vars).await {
+                } else if let Err(err) =
+                    self.save_variables(&step.save, &body, &mut vars).await
+                {
                     warn!("Failed to save variables: {}", err);
                 }
             }
@@ -614,21 +688,32 @@ impl TestRunner for DefaultTestRunner {
             let duration_ms = step_start.elapsed().as_millis() as u64;
 
             let mut step_value_map = Map::new();
-            step_value_map.insert("id".into(), Value::String(step_key.clone()));
-            step_value_map.insert("name".into(), Value::String(step.name.clone()));
-            step_value_map.insert("success".into(), Value::Bool(step_success));
+            step_value_map
+                .insert("id".into(), Value::String(step_key.clone()));
+            step_value_map
+                .insert("name".into(), Value::String(step.name.clone()));
+            step_value_map
+                .insert("success".into(), Value::Bool(step_success));
             step_value_map.insert(
                 "durationMs".into(),
                 Value::Number(Number::from(duration_ms)),
             );
             step_value_map.insert("request".into(), request_value.clone());
-            step_value_map.insert("response".into(), response_value.clone());
+            step_value_map
+                .insert("response".into(), response_value.clone());
             step_value_map.insert("outputs".into(), outputs_value.clone());
 
             let step_value = Value::Object(step_value_map);
             steps_map.insert(step_key.clone(), step_value.clone());
-            Self::flatten_value(&format!("steps.{step_key}"), &step_value, &mut vars);
-            vars.insert("steps".to_string(), Value::Object(steps_map.clone()));
+            Self::flatten_value(
+                &format!("steps.{step_key}"),
+                &step_value,
+                &mut vars,
+            );
+            vars.insert(
+                "steps".to_string(),
+                Value::Object(steps_map.clone()),
+            );
 
             // TODO: add English comment
             step_results.push(StepResult {

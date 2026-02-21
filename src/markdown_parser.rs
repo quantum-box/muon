@@ -93,8 +93,8 @@ struct CodeBlock {
 
 /// Parse a Markdown scenario file into a [`TestScenario`].
 pub fn parse_markdown_scenario(input: &str) -> Result<TestScenario> {
-    let (front_matter, _body_start_line) =
-        parse_front_matter(input).context("Failed to parse front matter")?;
+    let (front_matter, _body_start_line) = parse_front_matter(input)
+        .context("Failed to parse front matter")?;
 
     let fm: FrontMatter = serde_yaml::from_str(&front_matter)
         .context("Failed to deserialize front matter as YAML")?;
@@ -109,9 +109,13 @@ pub fn parse_markdown_scenario(input: &str) -> Result<TestScenario> {
     let mut merged_config = fm.config;
 
     for block in &blocks {
-        let parsed: ScenarioBlock = serde_yaml::from_str(&block.content).with_context(|| {
-            format!("Failed to parse YAML scenario block at line {}", block.line)
-        })?;
+        let parsed: ScenarioBlock = serde_yaml::from_str(&block.content)
+            .with_context(|| {
+                format!(
+                    "Failed to parse YAML scenario block at line {}",
+                    block.line
+                )
+            })?;
         all_steps.extend(parsed.steps);
 
         // Merge config from code blocks (last writer wins).
@@ -469,14 +473,20 @@ steps:
 ```
 "#;
         let err = parse_markdown_scenario(input);
-        assert!(err.is_err(), "Should fail when required 'name' is missing");
+        assert!(
+            err.is_err(),
+            "Should fail when required 'name' is missing"
+        );
     }
 
     #[test]
     fn test_front_matter_invalid_yaml() {
         let input = "---\n[invalid yaml: {{{\n---\n";
         let err = parse_markdown_scenario(input);
-        assert!(err.is_err(), "Should fail on invalid YAML in front matter");
+        assert!(
+            err.is_err(),
+            "Should fail on invalid YAML in front matter"
+        );
     }
 
     #[test]

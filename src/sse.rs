@@ -37,7 +37,8 @@ pub fn parse_sse_events(body: &str) -> Vec<SseEvent> {
             // Flush any previous event
             if let Some(event_type) = current_event_type.take() {
                 let data_raw = current_data_parts.join("\n");
-                let data_json = serde_json::from_str::<Value>(&data_raw).ok();
+                let data_json =
+                    serde_json::from_str::<Value>(&data_raw).ok();
                 events.push(SseEvent {
                     event_type,
                     data_raw,
@@ -53,7 +54,8 @@ pub fn parse_sse_events(body: &str) -> Vec<SseEvent> {
             // Blank line = event boundary
             if let Some(event_type) = current_event_type.take() {
                 let data_raw = current_data_parts.join("\n");
-                let data_json = serde_json::from_str::<Value>(&data_raw).ok();
+                let data_json =
+                    serde_json::from_str::<Value>(&data_raw).ok();
                 events.push(SseEvent {
                     event_type,
                     data_raw,
@@ -121,7 +123,8 @@ pub fn validate_sse(
     let mut errors = Vec::new();
     let mut saved_vars: HashMap<String, Value> = HashMap::new();
 
-    let event_types: Vec<&str> = events.iter().map(|e| e.event_type.as_str()).collect();
+    let event_types: Vec<&str> =
+        events.iter().map(|e| e.event_type.as_str()).collect();
 
     // Level 1: has_events — check that each required event type
     // appears at least once
@@ -194,7 +197,8 @@ fn validate_ordered_events(
         if !exp.data.is_empty() {
             if let Some(json) = &event.data_json {
                 for (key, expected_val) in &exp.data {
-                    let expanded_expected = expand_value(expected_val, expand_fn, saved_vars);
+                    let expanded_expected =
+                        expand_value(expected_val, expand_fn, saved_vars);
                     match json.get(key) {
                         Some(actual) => {
                             if *actual != expanded_expected {
@@ -231,11 +235,21 @@ fn validate_ordered_events(
                         .or_insert(Value::String(expanded_event.clone()));
                 }
                 // Recursively expand {{variables}}
-                let expanded = expand_value_deep(&expected_with_type, expand_fn, saved_vars);
-                let exact_errors =
-                    crate::validator::validate_data_eq(json, &expanded, &exp.ignore_fields, "");
+                let expanded = expand_value_deep(
+                    &expected_with_type,
+                    expand_fn,
+                    saved_vars,
+                );
+                let exact_errors = crate::validator::validate_data_eq(
+                    json,
+                    &expanded,
+                    &exp.ignore_fields,
+                    "",
+                );
                 for e in exact_errors {
-                    errors.push(format!("SSE event[{exp_idx}] '{expanded_event}': {e}"));
+                    errors.push(format!(
+                        "SSE event[{exp_idx}] '{expanded_event}': {e}"
+                    ));
                 }
             } else {
                 errors.push(format!(
@@ -300,7 +314,8 @@ fn expand_value(
     match val {
         Value::String(s) => {
             // Check if the entire string is a single placeholder
-            let placeholder_re = Regex::new(r"^\{\{\s*(\w+)\s*\}\}$").unwrap();
+            let placeholder_re =
+                Regex::new(r"^\{\{\s*(\w+)\s*\}\}$").unwrap();
             if let Some(caps) = placeholder_re.captures(s) {
                 let var_name = caps.get(1).unwrap().as_str();
                 if let Some(saved) = saved_vars.get(var_name) {
@@ -327,7 +342,10 @@ fn expand_value_deep(
         Value::Object(map) => {
             let mut new_map = Map::new();
             for (k, v) in map {
-                new_map.insert(k.clone(), expand_value_deep(v, expand_fn, saved_vars));
+                new_map.insert(
+                    k.clone(),
+                    expand_value_deep(v, expand_fn, saved_vars),
+                );
             }
             Value::Object(new_map)
         }
@@ -432,7 +450,11 @@ mod tests {
     fn test_validate_has_events() {
         let events = parse_sse_events(sample_sse_body());
         let expect = SseExpectation {
-            has_events: vec!["tool_call".into(), "usage".into(), "done".into()],
+            has_events: vec![
+                "tool_call".into(),
+                "usage".into(),
+                "done".into(),
+            ],
             has_no_events: vec!["error".into()],
             events: vec![],
         };
@@ -490,7 +512,10 @@ mod tests {
                     event: "tool_call".into(),
                     data: {
                         let mut m = HashMap::new();
-                        m.insert("tool_name".to_string(), json!("execute_command"));
+                        m.insert(
+                            "tool_name".to_string(),
+                            json!("execute_command"),
+                        );
                         m
                     },
                     data_eq: None,

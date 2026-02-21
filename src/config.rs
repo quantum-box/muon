@@ -32,12 +32,17 @@ impl TestConfigManager {
     /// Dispatches to [`TestScenario::from_markdown`] for
     /// `.scenario.md` files and to [`TestScenario::from_yaml`]
     /// for `.yaml` / `.yml` files.
-    pub fn load_scenario<P: AsRef<Path>>(&self, path: P) -> Result<TestScenario> {
+    pub fn load_scenario<P: AsRef<Path>>(
+        &self,
+        path: P,
+    ) -> Result<TestScenario> {
         let path = path.as_ref();
         info!("Loading test scenario from {}", path.display());
 
-        let content = fs::read_to_string(path)
-            .context(format!("Failed to read test file: {}", path.display()))?;
+        let content = fs::read_to_string(path).context(format!(
+            "Failed to read test file: {}",
+            path.display()
+        ))?;
 
         let scenario = if is_markdown_scenario(path) {
             TestScenario::from_markdown(&content).context(format!(
@@ -45,8 +50,10 @@ impl TestConfigManager {
                 path.display()
             ))?
         } else {
-            TestScenario::from_yaml(&content)
-                .context(format!("Failed to parse YAML from {}", path.display()))?
+            TestScenario::from_yaml(&content).context(format!(
+                "Failed to parse YAML from {}",
+                path.display()
+            ))?
         };
 
         debug!("Successfully loaded test scenario: {}", scenario.name);
@@ -54,15 +61,19 @@ impl TestConfigManager {
     }
 
     /// TODO: add English documentation
-    pub fn load_scenarios_from_dir<P: AsRef<Path>>(&self, dir: P) -> Result<Vec<TestScenario>> {
+    pub fn load_scenarios_from_dir<P: AsRef<Path>>(
+        &self,
+        dir: P,
+    ) -> Result<Vec<TestScenario>> {
         let dir = dir.as_ref();
         info!("Loading test scenarios from directory: {}", dir.display());
 
         let mut scenarios = Vec::new();
 
-        for entry in
-            fs::read_dir(dir).context(format!("Failed to read directory: {}", dir.display()))?
-        {
+        for entry in fs::read_dir(dir).context(format!(
+            "Failed to read directory: {}",
+            dir.display()
+        ))? {
             let entry = entry?;
             let path = entry.path();
 
@@ -70,7 +81,11 @@ impl TestConfigManager {
                 match self.load_scenario(&path) {
                     Ok(scenario) => scenarios.push(scenario),
                     Err(err) => {
-                        debug!("Failed to load scenario from {}: {}", path.display(), err);
+                        debug!(
+                            "Failed to load scenario from {}: {}",
+                            path.display(),
+                            err
+                        );
                     }
                 }
             }
@@ -91,9 +106,15 @@ impl TestConfigManager {
         for path in &self.test_paths {
             if path.exists() && path.is_dir() {
                 match self.load_scenarios_from_dir(path) {
-                    Ok(mut scenarios) => all_scenarios.append(&mut scenarios),
+                    Ok(mut scenarios) => {
+                        all_scenarios.append(&mut scenarios)
+                    }
                     Err(err) => {
-                        debug!("Failed to load scenarios from {}: {}", path.display(), err);
+                        debug!(
+                            "Failed to load scenarios from {}: {}",
+                            path.display(),
+                            err
+                        );
                     }
                 }
             }
@@ -198,8 +219,13 @@ mod tests {
         let mgr = TestConfigManager::new();
         let scenarios = mgr.load_scenarios_from_dir(dir.path()).unwrap();
 
-        assert_eq!(scenarios.len(), 2, "Should load exactly yaml + scenario.md");
-        let names: Vec<&str> = scenarios.iter().map(|s| s.name.as_str()).collect();
+        assert_eq!(
+            scenarios.len(),
+            2,
+            "Should load exactly yaml + scenario.md"
+        );
+        let names: Vec<&str> =
+            scenarios.iter().map(|s| s.name.as_str()).collect();
         assert!(names.contains(&"yaml-test"));
         assert!(names.contains(&"md-test"));
     }

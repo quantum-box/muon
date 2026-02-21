@@ -4,8 +4,8 @@ use anyhow::{anyhow, Context, Result};
 use chrono::Utc;
 use clap::{Parser, ValueEnum};
 use muon::{
-    api_client::TachyonOpsClient, CiMetadata, DefaultTestRunner, TestConfigManager, TestResult,
-    TestRunReport, TestRunner, TestScenario,
+    api_client::TachyonOpsClient, CiMetadata, DefaultTestRunner,
+    TestConfigManager, TestResult, TestRunReport, TestRunner, TestScenario,
 };
 use std::fs::{self, File};
 use std::io::Write;
@@ -116,7 +116,10 @@ fn print_test_result(result: &TestResult, verbose: bool) {
         }
 
         if verbose {
-            debug!("     Request: {} {}", step.request.method, step.request.url);
+            debug!(
+                "     Request: {} {}",
+                step.request.method, step.request.url
+            );
             if let Some(body) = &step.request.body {
                 let truncated = if body.len() > 500 {
                     format!("{}...(truncated)", &body[..500])
@@ -175,7 +178,10 @@ fn save_test_report(
             if let Some(error) = &result.error {
                 content.push_str(&format!("Error: {error}\n"));
             }
-            content.push_str(&format!("Duration: {} ms\n\n", result.duration_ms));
+            content.push_str(&format!(
+                "Duration: {} ms\n\n",
+                result.duration_ms
+            ));
             content.push_str("Steps:\n");
             for (i, step) in result.steps.iter().enumerate() {
                 content.push_str(&format!(
@@ -187,7 +193,10 @@ fn save_test_report(
                 if let Some(error) = &step.error {
                     content.push_str(&format!("     Error: {error}\n"));
                 }
-                content.push_str(&format!("     Duration: {} ms\n", step.duration_ms));
+                content.push_str(&format!(
+                    "     Duration: {} ms\n",
+                    step.duration_ms
+                ));
             }
             (filename, content)
         }
@@ -200,10 +209,13 @@ fn save_test_report(
     Ok(file_path)
 }
 
-fn prepare_config(test_path: Option<String>) -> Result<(TestConfigManager, Vec<TestScenario>)> {
+fn prepare_config(
+    test_path: Option<String>,
+) -> Result<(TestConfigManager, Vec<TestScenario>)> {
     let mut config = TestConfigManager::new();
 
-    let default_paths = ["tests/scenarios", "testcase/scenarios", "test/scenarios"];
+    let default_paths =
+        ["tests/scenarios", "testcase/scenarios", "test/scenarios"];
 
     for path in &default_paths {
         if Path::new(path).exists() {
@@ -221,16 +233,15 @@ fn prepare_config(test_path: Option<String>) -> Result<(TestConfigManager, Vec<T
         }
 
         if path.is_file() {
-            scenarios.push(
-                config
-                    .load_scenario(&path)
-                    .context(format!("Failed to load scenario: {}", path.display()))?,
-            );
+            scenarios.push(config.load_scenario(&path).context(
+                format!("Failed to load scenario: {}", path.display()),
+            )?);
         } else if path.is_dir() {
-            let dir_scenarios = config.load_scenarios_from_dir(&path).context(format!(
-                "Failed to load scenarios from directory: {}",
-                path.display()
-            ))?;
+            let dir_scenarios =
+                config.load_scenarios_from_dir(&path).context(format!(
+                    "Failed to load scenarios from directory: {}",
+                    path.display()
+                ))?;
             scenarios.extend(dir_scenarios);
         }
     } else {
@@ -248,7 +259,8 @@ fn prepare_config(test_path: Option<String>) -> Result<(TestConfigManager, Vec<T
 fn detect_ci_metadata() -> Option<CiMetadata> {
     // GitHub Actions
     if std::env::var("GITHUB_ACTIONS").is_ok() {
-        let repository = std::env::var("GITHUB_REPOSITORY").unwrap_or_default();
+        let repository =
+            std::env::var("GITHUB_REPOSITORY").unwrap_or_default();
         let branch = std::env::var("GITHUB_REF_NAME")
             .or_else(|_| std::env::var("GITHUB_HEAD_REF"))
             .unwrap_or_default();
@@ -256,14 +268,15 @@ fn detect_ci_metadata() -> Option<CiMetadata> {
         let pr_number = std::env::var("PR_NUMBER")
             .or_else(|_| {
                 // Try to extract from GITHUB_REF (refs/pull/123/merge)
-                std::env::var("GITHUB_REF").map(|r| r.split('/').nth(2).unwrap_or("").to_string())
+                std::env::var("GITHUB_REF")
+                    .map(|r| r.split('/').nth(2).unwrap_or("").to_string())
             })
             .ok()
             .and_then(|n| n.parse::<u64>().ok());
         let run_id = std::env::var("GITHUB_RUN_ID").ok();
-        let run_url = run_id
-            .as_ref()
-            .map(|id| format!("https://github.com/{repository}/actions/runs/{id}"));
+        let run_url = run_id.as_ref().map(|id| {
+            format!("https://github.com/{repository}/actions/runs/{id}")
+        });
 
         return Some(CiMetadata {
             provider: "github".to_string(),
@@ -298,7 +311,9 @@ async fn run_all_tests(
     let filtered: Vec<TestScenario> = match &test_filter {
         Some(filter) => scenarios
             .into_iter()
-            .filter(|s| s.name.to_lowercase().contains(&filter.to_lowercase()))
+            .filter(|s| {
+                s.name.to_lowercase().contains(&filter.to_lowercase())
+            })
             .collect(),
         None => scenarios,
     };

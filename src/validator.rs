@@ -5,7 +5,10 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 /// TODO: add English documentation
-pub fn get_by_json_path<'a>(json: &'a Value, path: &str) -> Option<&'a Value> {
+pub fn get_by_json_path<'a>(
+    json: &'a Value,
+    path: &str,
+) -> Option<&'a Value> {
     let parts: Vec<&str> = path.split('.').collect();
     let mut current = json;
 
@@ -20,7 +23,10 @@ pub fn get_by_json_path<'a>(json: &'a Value, path: &str) -> Option<&'a Value> {
 }
 
 /// TODO: add English documentation
-pub fn validate_json(body: &str, expectations: &HashMap<String, Value>) -> Result<Vec<String>> {
+pub fn validate_json(
+    body: &str,
+    expectations: &HashMap<String, Value>,
+) -> Result<Vec<String>> {
     let mut errors = Vec::new();
 
     // TODO: add English comment
@@ -42,7 +48,9 @@ pub fn validate_json(body: &str, expectations: &HashMap<String, Value>) -> Resul
                 }
             }
             None => {
-                errors.push(format!("JSONパス '{path}' がレスポンスに存在しません"));
+                errors.push(format!(
+                    "JSONパス '{path}' がレスポンスに存在しません"
+                ));
             }
         }
     }
@@ -108,7 +116,8 @@ pub fn validate_data_eq(
     match (actual, expected) {
         (Value::Object(a_map), Value::Object(e_map)) => {
             // Collect all keys from both sides
-            let mut all_keys: Vec<&String> = a_map.keys().chain(e_map.keys()).collect();
+            let mut all_keys: Vec<&String> =
+                a_map.keys().chain(e_map.keys()).collect();
             all_keys.sort();
             all_keys.dedup();
 
@@ -125,7 +134,12 @@ pub fn validate_data_eq(
 
                 match (a_map.get(key), e_map.get(key)) {
                     (Some(a_val), Some(e_val)) => {
-                        errors.extend(validate_data_eq(a_val, e_val, ignore_fields, &child_path));
+                        errors.extend(validate_data_eq(
+                            a_val,
+                            e_val,
+                            ignore_fields,
+                            &child_path,
+                        ));
                     }
                     (Some(a_val), None) => {
                         errors.push(format!(
@@ -198,7 +212,9 @@ pub fn validate_headers(
                 }
             }
             None => {
-                errors.push(format!("ヘッダー '{name}' がレスポンスに存在しません"));
+                errors.push(format!(
+                    "ヘッダー '{name}' がレスポンスに存在しません"
+                ));
             }
         }
     }
