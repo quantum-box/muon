@@ -43,10 +43,7 @@ impl TachyonOpsClient {
     ///
     /// Retries up to 3 times with exponential backoff on
     /// transient failures (5xx, network errors).
-    pub async fn submit_report(
-        &self,
-        report: &TestRunReport,
-    ) -> Result<SubmitResponse> {
+    pub async fn submit_report(&self, report: &TestRunReport) -> Result<SubmitResponse> {
         let url = format!(
             "{}/v1/ops/scenario-reports",
             self.api_url.trim_end_matches('/')
@@ -54,14 +51,13 @@ impl TachyonOpsClient {
         let max_retries = 3u32;
 
         for attempt in 0..=max_retries {
-            let mut request = self.http.post(&url).header(
-                "Authorization",
-                format!("Bearer {}", self.api_key),
-            );
+            let mut request = self
+                .http
+                .post(&url)
+                .header("Authorization", format!("Bearer {}", self.api_key));
 
             if let Some(ref operator_id) = self.operator_id {
-                request =
-                    request.header("x-operator-id", operator_id.as_str());
+                request = request.header("x-operator-id", operator_id.as_str());
             }
 
             let result = request.json(report).send().await;
@@ -77,8 +73,7 @@ impl TachyonOpsClient {
                 Ok(resp) if resp.status().is_server_error() => {
                     let status = resp.status();
                     if attempt < max_retries {
-                        let delay =
-                            Duration::from_millis(500 * 2u64.pow(attempt));
+                        let delay = Duration::from_millis(500 * 2u64.pow(attempt));
                         warn!(
                             status = %status,
                             attempt = attempt + 1,
@@ -89,26 +84,16 @@ impl TachyonOpsClient {
                         continue;
                     }
                     let body = resp.text().await.unwrap_or_default();
-                    anyhow::bail!(
-                        "server error after {} retries: {} - {}",
-                        max_retries,
-                        status,
-                        body
-                    );
+                    anyhow::bail!("server error after {max_retries} retries: {status} - {body}");
                 }
                 Ok(resp) => {
                     let status = resp.status();
                     let body = resp.text().await.unwrap_or_default();
-                    anyhow::bail!(
-                        "API request failed: {} - {}",
-                        status,
-                        body
-                    );
+                    anyhow::bail!("API request failed: {status} - {body}");
                 }
                 Err(e) => {
                     if attempt < max_retries {
-                        let delay =
-                            Duration::from_millis(500 * 2u64.pow(attempt));
+                        let delay = Duration::from_millis(500 * 2u64.pow(attempt));
                         warn!(
                             error = %e,
                             attempt = attempt + 1,
@@ -119,8 +104,7 @@ impl TachyonOpsClient {
                         continue;
                     }
                     return Err(e).context(format!(
-                        "failed to submit report after {} retries",
-                        max_retries
+                        "failed to submit report after {max_retries} retries"
                     ));
                 }
             }

@@ -118,8 +118,8 @@ impl TestServer {
             );
 
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
-        let server = axum::serve(listener, app.into_make_service())
-            .with_graceful_shutdown(async move {
+        let server =
+            axum::serve(listener, app.into_make_service()).with_graceful_shutdown(async move {
                 let _ = shutdown_rx.await;
             });
 
@@ -128,7 +128,7 @@ impl TestServer {
                 eprintln!("test server error: {err}");
             }
         });
-        let base_url = format!("http://{}", addr);
+        let base_url = format!("http://{addr}");
 
         Self {
             base_url,
@@ -163,19 +163,16 @@ impl Drop for TestServer {
 fn load_scenario(path: &str, base_url: &str) -> TestScenario {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let scenario_path = manifest_dir.join("tests/fixtures").join(path);
-    let yaml = fs::read_to_string(&scenario_path).unwrap_or_else(|e| {
-        panic!("failed to read {:?}: {e}", scenario_path)
-    });
+    let yaml = fs::read_to_string(&scenario_path)
+        .unwrap_or_else(|e| panic!("failed to read {scenario_path:?}: {e}"));
     let yaml = yaml.replace("__BASE_URL__", base_url);
-    TestScenario::from_yaml(&yaml)
-        .unwrap_or_else(|e| panic!("failed to parse scenario yaml: {e}"))
+    TestScenario::from_yaml(&yaml).unwrap_or_else(|e| panic!("failed to parse scenario yaml: {e}"))
 }
 
 #[tokio::test]
 async fn json_lengths_succeeds_for_arrays_and_objects() {
     let server = TestServer::spawn().await;
-    let scenario =
-        load_scenario("json_lengths_success.yaml", &server.base_url);
+    let scenario = load_scenario("json_lengths_success.yaml", &server.base_url);
     let runner = DefaultTestRunner::new();
 
     let result = runner
@@ -195,8 +192,7 @@ async fn json_lengths_succeeds_for_arrays_and_objects() {
 #[tokio::test]
 async fn json_lengths_succeeds_for_nested_paths() {
     let server = TestServer::spawn().await;
-    let scenario =
-        load_scenario("json_lengths_nested.yaml", &server.base_url);
+    let scenario = load_scenario("json_lengths_nested.yaml", &server.base_url);
     let runner = DefaultTestRunner::new();
 
     let result = runner
@@ -216,8 +212,7 @@ async fn json_lengths_succeeds_for_nested_paths() {
 #[tokio::test]
 async fn json_lengths_succeeds_for_zero_length_collections() {
     let server = TestServer::spawn().await;
-    let scenario =
-        load_scenario("json_lengths_zero.yaml", &server.base_url);
+    let scenario = load_scenario("json_lengths_zero.yaml", &server.base_url);
     let runner = DefaultTestRunner::new();
 
     let result = runner
@@ -237,8 +232,7 @@ async fn json_lengths_succeeds_for_zero_length_collections() {
 #[tokio::test]
 async fn json_lengths_succeeds_for_objects() {
     let server = TestServer::spawn().await;
-    let scenario =
-        load_scenario("json_lengths_object_success.yaml", &server.base_url);
+    let scenario = load_scenario("json_lengths_object_success.yaml", &server.base_url);
     let runner = DefaultTestRunner::new();
 
     let result = runner
@@ -298,8 +292,7 @@ async fn headers_succeed_when_values_match() {
 #[tokio::test]
 async fn json_match_succeeds_for_exact_values() {
     let server = TestServer::spawn().await;
-    let scenario =
-        load_scenario("json_match_success.yaml", &server.base_url);
+    let scenario = load_scenario("json_match_success.yaml", &server.base_url);
     let runner = DefaultTestRunner::new();
 
     let result = runner
@@ -319,8 +312,7 @@ async fn json_match_succeeds_for_exact_values() {
 #[tokio::test]
 async fn json_lengths_fails_for_non_collection_values() {
     let server = TestServer::spawn().await;
-    let scenario =
-        load_scenario("json_lengths_wrong_type.yaml", &server.base_url);
+    let scenario = load_scenario("json_lengths_wrong_type.yaml", &server.base_url);
     let runner = DefaultTestRunner::new();
 
     let result = runner
@@ -337,8 +329,7 @@ async fn json_lengths_fails_for_non_collection_values() {
 #[tokio::test]
 async fn json_lengths_fails_for_array_length_mismatch() {
     let server = TestServer::spawn().await;
-    let scenario =
-        load_scenario("json_lengths_array_mismatch.yaml", &server.base_url);
+    let scenario = load_scenario("json_lengths_array_mismatch.yaml", &server.base_url);
     let runner = DefaultTestRunner::new();
 
     let result = runner
@@ -355,10 +346,7 @@ async fn json_lengths_fails_for_array_length_mismatch() {
 #[tokio::test]
 async fn json_lengths_fails_for_object_length_mismatch() {
     let server = TestServer::spawn().await;
-    let scenario = load_scenario(
-        "json_lengths_object_mismatch.yaml",
-        &server.base_url,
-    );
+    let scenario = load_scenario("json_lengths_object_mismatch.yaml", &server.base_url);
     let runner = DefaultTestRunner::new();
 
     let result = runner
@@ -375,8 +363,7 @@ async fn json_lengths_fails_for_object_length_mismatch() {
 #[tokio::test]
 async fn json_lengths_fails_for_missing_path() {
     let server = TestServer::spawn().await;
-    let scenario =
-        load_scenario("json_lengths_missing_path.yaml", &server.base_url);
+    let scenario = load_scenario("json_lengths_missing_path.yaml", &server.base_url);
     let runner = DefaultTestRunner::new();
 
     let result = runner
@@ -430,8 +417,7 @@ async fn headers_fail_when_value_differs() {
 #[tokio::test]
 async fn json_match_fails_when_value_differs() {
     let server = TestServer::spawn().await;
-    let scenario =
-        load_scenario("json_match_failure.yaml", &server.base_url);
+    let scenario = load_scenario("json_match_failure.yaml", &server.base_url);
     let runner = DefaultTestRunner::new();
 
     let result = runner
@@ -457,10 +443,7 @@ async fn status_mismatch_produces_failure() {
         .expect("runner returned error for status mismatch");
 
     assert!(!result.success, "scenario should fail");
-    assert_error_contains(
-        &result,
-        "ステータスコードが期待値と一致しません",
-    );
+    assert_error_contains(&result, "ステータスコードが期待値と一致しません");
 
     server.shutdown().await;
 }

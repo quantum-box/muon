@@ -26,10 +26,7 @@ pub fn add(left: u64, right: u64) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use model::{
-        HttpMethod, HttpRequest, ResponseExpectation, TestScenario,
-        TestStep,
-    };
+    use model::{HttpMethod, HttpRequest, ResponseExpectation, TestScenario, TestStep};
     use serde_json::json;
     use std::collections::HashMap;
 
@@ -94,16 +91,14 @@ mod tests {
         expectations.insert("data.nested.foo".to_string(), json!("bar"));
 
         // TODO: add English comment
-        let errors =
-            validator::validate_json(json_str, &expectations).unwrap();
+        let errors = validator::validate_json(json_str, &expectations).unwrap();
         assert!(errors.is_empty());
 
         // TODO: add English comment
         let mut fail_expectations = HashMap::new();
         fail_expectations.insert("name".to_string(), json!("違う名前"));
 
-        let errors =
-            validator::validate_json(json_str, &fail_expectations).unwrap();
+        let errors = validator::validate_json(json_str, &fail_expectations).unwrap();
         assert!(!errors.is_empty());
     }
 }

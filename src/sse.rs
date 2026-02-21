@@ -33,12 +33,11 @@ pub fn parse_sse_events(body: &str) -> Vec<SseEvent> {
     let mut current_data_parts: Vec<String> = Vec::new();
 
     for line in body.lines() {
-        if line.starts_with("event:") {
+        if let Some(stripped) = line.strip_prefix("event:") {
             // Flush any previous event
             if let Some(event_type) = current_event_type.take() {
                 let data_raw = current_data_parts.join("\n");
-                let data_json =
-                    serde_json::from_str::<Value>(&data_raw).ok();
+                let data_json = serde_json::from_str::<Value>(&data_raw).ok();
                 events.push(SseEvent {
                     event_type,
                     data_raw,
@@ -46,17 +45,15 @@ pub fn parse_sse_events(body: &str) -> Vec<SseEvent> {
                 });
                 current_data_parts.clear();
             }
-            current_event_type =
-                Some(line["event:".len()..].trim().to_string());
-        } else if line.starts_with("data:") {
-            let data = line["data:".len()..].trim().to_string();
+            current_event_type = Some(stripped.trim().to_string());
+        } else if let Some(stripped) = line.strip_prefix("data:") {
+            let data = stripped.trim().to_string();
             current_data_parts.push(data);
         } else if line.is_empty() {
             // Blank line = event boundary
             if let Some(event_type) = current_event_type.take() {
                 let data_raw = current_data_parts.join("\n");
-                let data_json =
-                    serde_json::from_str::<Value>(&data_raw).ok();
+                let data_json = serde_json::from_str::<Value>(&data_raw).ok();
                 events.push(SseEvent {
                     event_type,
                     data_raw,
@@ -124,17 +121,15 @@ pub fn validate_sse(
     let mut errors = Vec::new();
     let mut saved_vars: HashMap<String, Value> = HashMap::new();
 
-    let event_types: Vec<&str> =
-        events.iter().map(|e| e.event_type.as_str()).collect();
+    let event_types: Vec<&str> = events.iter().map(|e| e.event_type.as_str()).collect();
 
     // Level 1: has_events — check that each required event type
     // appears at least once
     for required in &expect.has_events {
         if !event_types.contains(&required.as_str()) {
             errors.push(format!(
-                "SSE: expected event type '{}' not found \
-                 (found: {:?})",
-                required, event_types
+                "SSE: expected event type '{required}' not found \
+                 (found: {event_types:?})"
             ));
         }
     }
@@ -144,8 +139,7 @@ pub fn validate_sse(
     for forbidden in &expect.has_no_events {
         if event_types.contains(&forbidden.as_str()) {
             errors.push(format!(
-                "SSE: forbidden event type '{}' was found in stream",
-                forbidden
+                "SSE: forbidden event type '{forbidden}' was found in stream"
             ));
         }
     }
@@ -188,9 +182,8 @@ fn validate_ordered_events(
 
         if !found {
             errors.push(format!(
-                "SSE event[{}]: expected event '{}' not found \
-                 after scanning from position",
-                exp_idx, expanded_event
+                "SSE event[{exp_idx}]: expected event '{expanded_event}' not found \
+                 after scanning from position"
             ));
             continue;
         }
@@ -201,37 +194,29 @@ fn validate_ordered_events(
         if !exp.data.is_empty() {
             if let Some(json) = &event.data_json {
                 for (key, expected_val) in &exp.data {
-                    let expanded_expected =
-                        expand_value(expected_val, expand_fn, saved_vars);
+                    let expanded_expected = expand_value(expected_val, expand_fn, saved_vars);
                     match json.get(key) {
                         Some(actual) => {
                             if *actual != expanded_expected {
                                 errors.push(format!(
-                                    "SSE event[{}] '{}': field '{}' \
-                                     mismatch — expected {:?}, \
-                                     got {:?}",
-                                    exp_idx,
-                                    expanded_event,
-                                    key,
-                                    expanded_expected,
-                                    actual
+                                    "SSE event[{exp_idx}] '{expanded_event}': field '{key}' \
+                                     mismatch — expected {expanded_expected:?}, \
+                                     got {actual:?}"
                                 ));
                             }
                         }
                         None => {
                             errors.push(format!(
-                                "SSE event[{}] '{}': field '{}' \
-                                 not found in data",
-                                exp_idx, expanded_event, key
+                                "SSE event[{exp_idx}] '{expanded_event}': field '{key}' \
+                                 not found in data"
                             ));
                         }
                     }
                 }
             } else {
                 errors.push(format!(
-                    "SSE event[{}] '{}': data is not valid JSON, \
-                     cannot check fields",
-                    exp_idx, expanded_event
+                    "SSE event[{exp_idx}] '{expanded_event}': data is not valid JSON, \
+                     cannot check fields"
                 ));
             }
         }
@@ -241,8 +226,7 @@ fn validate_ordered_events(
             let expanded_substr = expand_fn(substr);
             if !event.data_raw.contains(&expanded_substr) {
                 errors.push(format!(
-                    "SSE event[{}] '{}': data does not contain '{}'",
-                    exp_idx, expanded_event, expanded_substr
+                    "SSE event[{exp_idx}] '{expanded_event}': data does not contain '{expanded_substr}'"
                 ));
             }
         }
@@ -252,16 +236,14 @@ fn validate_ordered_events(
             if let Some(json) = &event.data_json {
                 if json.get(field).is_none() {
                     errors.push(format!(
-                        "SSE event[{}] '{}': expected field '{}' \
-                         to exist in data",
-                        exp_idx, expanded_event, field
+                        "SSE event[{exp_idx}] '{expanded_event}': expected field '{field}' \
+                         to exist in data"
                     ));
                 }
             } else {
                 errors.push(format!(
-                    "SSE event[{}] '{}': data is not valid JSON, \
-                     cannot check field existence for '{}'",
-                    exp_idx, expanded_event, field
+                    "SSE event[{exp_idx}] '{expanded_event}': data is not valid JSON, \
+                     cannot check field existence for '{field}'"
                 ));
             }
         }
@@ -273,9 +255,8 @@ fn validate_ordered_events(
                     saved_vars.insert(var_name.clone(), val.clone());
                 } else {
                     errors.push(format!(
-                        "SSE event[{}] '{}': save field '{}' not \
-                         found in data",
-                        exp_idx, expanded_event, data_field
+                        "SSE event[{exp_idx}] '{expanded_event}': save field '{data_field}' not \
+                         found in data"
                     ));
                 }
             }
@@ -295,8 +276,7 @@ fn expand_value(
     match val {
         Value::String(s) => {
             // Check if the entire string is a single placeholder
-            let placeholder_re =
-                Regex::new(r"^\{\{\s*(\w+)\s*\}\}$").unwrap();
+            let placeholder_re = Regex::new(r"^\{\{\s*(\w+)\s*\}\}$").unwrap();
             if let Some(caps) = placeholder_re.captures(s) {
                 let var_name = caps.get(1).unwrap().as_str();
                 if let Some(saved) = saved_vars.get(var_name) {
@@ -401,18 +381,14 @@ mod tests {
     fn test_validate_has_events() {
         let events = parse_sse_events(sample_sse_body());
         let expect = SseExpectation {
-            has_events: vec![
-                "tool_call".into(),
-                "usage".into(),
-                "done".into(),
-            ],
+            has_events: vec!["tool_call".into(), "usage".into(), "done".into()],
             has_no_events: vec!["error".into()],
             events: vec![],
         };
 
         let identity = |s: &str| s.to_string();
         let (errors, _) = validate_sse(&events, &expect, &identity);
-        assert!(errors.is_empty(), "Errors: {:?}", errors);
+        assert!(errors.is_empty(), "Errors: {errors:?}");
     }
 
     #[test]
@@ -463,10 +439,7 @@ mod tests {
                     event: "tool_call".into(),
                     data: {
                         let mut m = HashMap::new();
-                        m.insert(
-                            "tool_name".to_string(),
-                            json!("execute_command"),
-                        );
+                        m.insert("tool_name".to_string(), json!("execute_command"));
                         m
                     },
                     data_contains: None,
@@ -514,7 +487,7 @@ mod tests {
 
         let identity = |s: &str| s.to_string();
         let (errors, saved) = validate_sse(&events, &expect, &identity);
-        assert!(errors.is_empty(), "Errors: {:?}", errors);
+        assert!(errors.is_empty(), "Errors: {errors:?}");
         assert_eq!(saved["tc_id"], json!("tc_001"));
     }
 

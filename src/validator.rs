@@ -5,10 +5,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 /// TODO: add English documentation
-pub fn get_by_json_path<'a>(
-    json: &'a Value,
-    path: &str,
-) -> Option<&'a Value> {
+pub fn get_by_json_path<'a>(json: &'a Value, path: &str) -> Option<&'a Value> {
     let parts: Vec<&str> = path.split('.').collect();
     let mut current = json;
 
@@ -23,17 +20,14 @@ pub fn get_by_json_path<'a>(
 }
 
 /// TODO: add English documentation
-pub fn validate_json(
-    body: &str,
-    expectations: &HashMap<String, Value>,
-) -> Result<Vec<String>> {
+pub fn validate_json(body: &str, expectations: &HashMap<String, Value>) -> Result<Vec<String>> {
     let mut errors = Vec::new();
 
     // TODO: add English comment
     let json: Value = match serde_json::from_str(body) {
         Ok(json) => json,
         Err(e) => {
-            return Err(anyhow!("JSONパースエラー: {}", e));
+            return Err(anyhow!("JSONパースエラー: {e}"));
         }
     };
 
@@ -48,9 +42,7 @@ pub fn validate_json(
                 }
             }
             None => {
-                errors.push(format!(
-                    "JSONパス '{path}' がレスポンスに存在しません"
-                ));
+                errors.push(format!("JSONパス '{path}' がレスポンスに存在しません"));
             }
         }
     }
@@ -90,9 +82,7 @@ pub fn validate_headers(
                 }
             }
             None => {
-                errors.push(format!(
-                    "ヘッダー '{name}' がレスポンスに存在しません"
-                ));
+                errors.push(format!("ヘッダー '{name}' がレスポンスに存在しません"));
             }
         }
     }
