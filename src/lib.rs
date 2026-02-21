@@ -54,6 +54,8 @@ mod tests {
                     json_lengths: HashMap::new(),
                     schema: None,
                     contains: vec![],
+                    json_eq: None,
+                    json_ignore_fields: vec![],
                     sse: None,
                 },
                 save: HashMap::new(),

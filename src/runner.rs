@@ -532,6 +532,28 @@ impl TestRunner for DefaultTestRunner {
                 }
             }
 
+            // json_eq — full equality check
+            if let Some(ref exact_expected) = step.expect.json_eq {
+                if let Some(json_body) = &parsed_json {
+                    let expanded_json = serde_json::to_string(exact_expected)?;
+                    let expanded_str = self.expand_variables(&expanded_json, &vars);
+                    let expanded: Value = serde_json::from_str(&expanded_str)?;
+                    let exact_errors = crate::validator::validate_data_eq(
+                        json_body,
+                        &expanded,
+                        &step.expect.json_ignore_fields,
+                        "",
+                    );
+                    if !exact_errors.is_empty() {
+                        step_success = false;
+                        step_error = Some(exact_errors.join("; "));
+                    }
+                } else {
+                    step_success = false;
+                    step_error = Some("json_eq: response is not valid JSON".to_string());
+                }
+            }
+
             // TODO: add English comment
             for text in &step.expect.contains {
                 let expanded_text = self.expand_variables(text, &vars);

@@ -96,6 +96,12 @@ pub struct ResponseExpectation {
     /// TODO: add English documentation
     #[serde(default)]
     pub contains: Vec<String>,
+    /// Full JSON equality check for REST responses.
+    #[serde(default)]
+    pub json_eq: Option<serde_json::Value>,
+    /// Fields to exclude from `json_eq` comparison.
+    #[serde(default)]
+    pub json_ignore_fields: Vec<String>,
     /// SSE event stream expectations
     #[serde(default)]
     pub sse: Option<SseExpectation>,
@@ -123,6 +129,15 @@ pub struct SseEventExpectation {
     /// Field exact-match checks on the parsed JSON data
     #[serde(default)]
     pub data: HashMap<String, serde_json::Value>,
+    /// Full JSON equality check. All non-ignored fields must match
+    /// exactly; extra fields in the actual data are errors.
+    #[serde(default)]
+    pub data_eq: Option<serde_json::Value>,
+    /// Fields to exclude from `data_eq` comparison.
+    /// Supports dot-separated paths (e.g. "args.stamp_id")
+    /// and wildcard `*` for array elements (e.g. "items.*.id").
+    #[serde(default)]
+    pub ignore_fields: Vec<String>,
     /// Substring match against the raw data text
     #[serde(default)]
     pub data_contains: Option<String>,

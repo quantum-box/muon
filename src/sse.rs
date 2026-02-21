@@ -221,6 +221,30 @@ fn validate_ordered_events(
             }
         }
 
+        // data_eq — full equality check with ignore_fields
+        if let Some(ref exact_expected) = exp.data_eq {
+            if let Some(json) = &event.data_json {
+                // Auto-inject "type" from event name
+                let mut expected_with_type = exact_expected.clone();
+                if let Value::Object(ref mut map) = expected_with_type {
+                    map.entry("type".to_string())
+                        .or_insert(Value::String(expanded_event.clone()));
+                }
+                // Recursively expand {{variables}}
+                let expanded = expand_value_deep(&expected_with_type, expand_fn, saved_vars);
+                let exact_errors =
+                    crate::validator::validate_data_eq(json, &expanded, &exp.ignore_fields, "");
+                for e in exact_errors {
+                    errors.push(format!("SSE event[{exp_idx}] '{expanded_event}': {e}"));
+                }
+            } else {
+                errors.push(format!(
+                    "SSE event[{exp_idx}] '{expanded_event}': data is not valid \
+                     JSON, cannot run data_eq check"
+                ));
+            }
+        }
+
         // data_contains — substring match on raw data
         if let Some(substr) = &exp.data_contains {
             let expanded_substr = expand_fn(substr);
@@ -286,6 +310,33 @@ fn expand_value(
 
             let expanded = expand_fn(s);
             Value::String(expanded)
+        }
+        _ => val.clone(),
+    }
+}
+
+/// Recursively expand `{{var}}` placeholders in all string values
+/// within a JSON tree (objects, arrays, nested).
+fn expand_value_deep(
+    val: &Value,
+    expand_fn: &dyn Fn(&str) -> String,
+    saved_vars: &HashMap<String, Value>,
+) -> Value {
+    match val {
+        Value::String(_) => expand_value(val, expand_fn, saved_vars),
+        Value::Object(map) => {
+            let mut new_map = Map::new();
+            for (k, v) in map {
+                new_map.insert(k.clone(), expand_value_deep(v, expand_fn, saved_vars));
+            }
+            Value::Object(new_map)
+        }
+        Value::Array(arr) => {
+            let new_arr: Vec<Value> = arr
+                .iter()
+                .map(|v| expand_value_deep(v, expand_fn, saved_vars))
+                .collect();
+            Value::Array(new_arr)
         }
         _ => val.clone(),
     }
@@ -442,6 +493,8 @@ mod tests {
                         m.insert("tool_name".to_string(), json!("execute_command"));
                         m
                     },
+                    data_eq: None,
+                    ignore_fields: vec![],
                     data_contains: None,
                     data_exists: vec![],
                     save: save_tc,
@@ -449,6 +502,8 @@ mod tests {
                 SseEventExpectation {
                     event: "tool_call_args".into(),
                     data: data_tc_args,
+                    data_eq: None,
+                    ignore_fields: vec![],
                     data_contains: None,
                     data_exists: vec![],
                     save: HashMap::new(),
@@ -460,6 +515,8 @@ mod tests {
                         m.insert("tool_id".to_string(), json!("{{tc_id}}"));
                         m
                     },
+                    data_eq: None,
+                    ignore_fields: vec![],
                     data_contains: Some("hello".into()),
                     data_exists: vec![],
                     save: HashMap::new(),
@@ -467,6 +524,8 @@ mod tests {
                 SseEventExpectation {
                     event: "usage".into(),
                     data: HashMap::new(),
+                    data_eq: None,
+                    ignore_fields: vec![],
                     data_contains: None,
                     data_exists: vec![
                         "prompt_tokens".into(),
@@ -478,6 +537,8 @@ mod tests {
                 SseEventExpectation {
                     event: "done".into(),
                     data: HashMap::new(),
+                    data_eq: None,
+                    ignore_fields: vec![],
                     data_contains: None,
                     data_exists: vec![],
                     save: HashMap::new(),
@@ -504,6 +565,8 @@ mod tests {
                     m.insert("tool_name".to_string(), json!("wrong_tool"));
                     m
                 },
+                data_eq: None,
+                ignore_fields: vec![],
                 data_contains: None,
                 data_exists: vec![],
                 save: HashMap::new(),
@@ -525,6 +588,8 @@ mod tests {
             events: vec![SseEventExpectation {
                 event: "tool_result".into(),
                 data: HashMap::new(),
+                data_eq: None,
+                ignore_fields: vec![],
                 data_contains: Some("not_found_text".into()),
                 data_exists: vec![],
                 save: HashMap::new(),
@@ -546,6 +611,8 @@ mod tests {
             events: vec![SseEventExpectation {
                 event: "tool_call".into(),
                 data: HashMap::new(),
+                data_eq: None,
+                ignore_fields: vec![],
                 data_contains: None,
                 data_exists: vec![],
                 save: HashMap::new(),
