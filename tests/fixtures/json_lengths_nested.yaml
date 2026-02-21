@@ -1,0 +1,19 @@
+name: JSON length nested scenario
+description: Verify json_lengths handles nested arrays
+
+config:
+  base_url: __BASE_URL__
+
+steps:
+  - name: ネストした配列の長さを検証する
+    request:
+      method: GET
+      url: /nested
+    expect:
+      status: 200
+      json_lengths:
+        data.groups: 2
+        data.groups.0.members: 2
+        data.groups.0.tags: 0
+        data.groups.1.members: 1
+        data.groups.1.tags: 1

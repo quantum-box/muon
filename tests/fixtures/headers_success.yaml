@@ -1,0 +1,15 @@
+name: Headers success scenario
+description: Verify header expectations succeed
+
+config:
+  base_url: __BASE_URL__
+
+steps:
+  - name: レスポンスヘッダーが一致することを検証
+    request:
+      method: GET
+      url: /headers
+    expect:
+      status: 200
+      headers:
+        x-test-header: ok

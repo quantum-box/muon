@@ -1,0 +1,15 @@
+name: JSON length object success scenario
+description: Verify json_lengths supports object entry counts
+
+config:
+  base_url: __BASE_URL__
+
+steps:
+  - name: オブジェクトのキー数を検証する
+    request:
+      method: GET
+      url: /object
+    expect:
+      status: 200
+      json_lengths:
+        data.entries: 4

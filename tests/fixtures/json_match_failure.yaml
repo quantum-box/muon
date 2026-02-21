@@ -1,0 +1,15 @@
+name: JSON match failure scenario
+description: Expect json expectation to fail on mismatch
+
+config:
+  base_url: __BASE_URL__
+
+steps:
+  - name: JSON値が一致しない場合に失敗する
+    request:
+      method: GET
+      url: /sample
+    expect:
+      status: 200
+      json:
+        data.kind: wrong

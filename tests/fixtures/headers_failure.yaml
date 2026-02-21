@@ -1,0 +1,15 @@
+name: Headers failure scenario
+description: Expect header expectations to fail on mismatch
+
+config:
+  base_url: __BASE_URL__
+
+steps:
+  - name: レスポンスヘッダーが一致しない場合に失敗する
+    request:
+      method: GET
+      url: /headers
+    expect:
+      status: 200
+      headers:
+        x-test-header: ng

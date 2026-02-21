@@ -1,0 +1,15 @@
+name: Contains success scenario
+description: Verify contains expectation matches substring
+
+config:
+  base_url: __BASE_URL__
+
+steps:
+  - name: レスポンス本文にキーワードが含まれることを検証
+    request:
+      method: GET
+      url: /text
+    expect:
+      status: 200
+      contains:
+        - runner world

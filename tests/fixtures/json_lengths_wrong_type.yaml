@@ -1,0 +1,15 @@
+name: JSON length wrong type scenario
+description: Expect json_lengths to fail when applied to non-array values
+
+config:
+  base_url: __BASE_URL__
+
+steps:
+  - name: 配列ではない値に対して長さ検証を行う
+    request:
+      method: GET
+      url: /sample
+    expect:
+      status: 200
+      json_lengths:
+        data.kind: 1

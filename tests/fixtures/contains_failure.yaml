@@ -1,0 +1,15 @@
+name: Contains failure scenario
+description: Expect contains to fail when substring missing
+
+config:
+  base_url: __BASE_URL__
+
+steps:
+  - name: 存在しないキーワードを検証する
+    request:
+      method: GET
+      url: /text
+    expect:
+      status: 200
+      contains:
+        - nonexistent keyword

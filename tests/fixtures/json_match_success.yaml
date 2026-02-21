@@ -1,0 +1,16 @@
+name: JSON exact match success scenario
+description: Verify json expectation matches exact values
+
+config:
+  base_url: __BASE_URL__
+
+steps:
+  - name: JSON値が一致することを検証
+    request:
+      method: GET
+      url: /sample
+    expect:
+      status: 200
+      json:
+        data.kind: list
+        data.items.0.id: item-1

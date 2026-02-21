@@ -1,0 +1,15 @@
+name: JSON length object mismatch scenario
+description: Expect failure when object entry count differs from expectation
+
+config:
+  base_url: __BASE_URL__
+
+steps:
+  - name: オブジェクトの要素数ミスマッチを検証する
+    request:
+      method: GET
+      url: /object
+    expect:
+      status: 200
+      json_lengths:
+        data.entries: 2

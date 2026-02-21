@@ -1,0 +1,13 @@
+name: Status mismatch scenario
+description: Expect failure when HTTP status differs
+
+config:
+  base_url: __BASE_URL__
+
+steps:
+  - name: HTTPステータスのミスマッチを検証
+    request:
+      method: GET
+      url: /created
+    expect:
+      status: 200

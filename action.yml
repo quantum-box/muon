@@ -1,0 +1,115 @@
+name: 'Muon Scenario Test'
+description: 'Run YAML-based API scenario tests and report results to Tachyon Ops'
+inputs:
+  test-path:
+    description: 'Path to test file or directory'
+    required: true
+    default: 'tests/scenarios'
+  filter:
+    description: 'Filter tests by name (partial match)'
+    required: false
+  base-url:
+    description: 'Base URL for API under test'
+    required: false
+  api-url:
+    description: 'Tachyon Ops API URL for result reporting'
+    required: false
+  api-key:
+    description: 'Tachyon Ops API key'
+    required: false
+  timeout:
+    description: 'Timeout per step in seconds'
+    required: false
+    default: '30'
+  verbose:
+    description: 'Enable verbose logging'
+    required: false
+    default: 'false'
+  muon-version:
+    description: 'Muon version tag (e.g., muon-v0.1.0)'
+    required: false
+    default: 'latest'
+  report-format:
+    description: 'Report format (json, yaml, text)'
+    required: false
+    default: 'json'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Detect platform
+      id: platform
+      shell: bash
+      run: |
+        case "$(uname -s)-$(uname -m)" in
+          Linux-x86_64)  echo "target=x86_64-unknown-linux-gnu" >> $GITHUB_OUTPUT ;;
+          Linux-aarch64) echo "target=aarch64-unknown-linux-gnu" >> $GITHUB_OUTPUT ;;
+          Darwin-arm64)  echo "target=aarch64-apple-darwin" >> $GITHUB_OUTPUT ;;
+          *) echo "::error::Unsupported platform: $(uname -s)-$(uname -m)" && exit 1 ;;
+        esac
+
+    - name: Download muon
+      shell: bash
+      run: |
+        BINARY_NAME="muon-${{ steps.platform.outputs.target }}"
+        if [ "${{ inputs.muon-version }}" = "latest" ]; then
+          gh release download --repo quantum-box/muon \
+            --pattern "${BINARY_NAME}" \
+            --dir /tmp/muon \
+            --clobber
+        else
+          gh release download "${{ inputs.muon-version }}" \
+            --repo quantum-box/muon \
+            --pattern "${BINARY_NAME}" \
+            --dir /tmp/muon \
+            --clobber
+        fi
+        chmod +x "/tmp/muon/${BINARY_NAME}"
+        mv "/tmp/muon/${BINARY_NAME}" /tmp/muon/muon
+      env:
+        GH_TOKEN: ${{ github.token }}
+
+    - name: Run scenario tests
+      shell: bash
+      run: |
+        ARGS=(-p "$MUON_TEST_PATH" --timeout "$MUON_TIMEOUT" --report-format "$MUON_REPORT_FORMAT" -r /tmp/scenario-reports)
+
+        if [ "$MUON_VERBOSE" = "true" ]; then
+          ARGS+=(-v)
+        fi
+
+        if [ -n "$MUON_FILTER" ]; then
+          ARGS+=(-f "$MUON_FILTER")
+        fi
+
+        if [ -n "$MUON_BASE_URL" ]; then
+          ARGS+=(-b "$MUON_BASE_URL")
+        fi
+
+        if [ -n "$MUON_API_URL" ]; then
+          ARGS+=(--api-url "$MUON_API_URL")
+        fi
+
+        if [ -n "$MUON_API_KEY" ]; then
+          ARGS+=(--api-key "$MUON_API_KEY")
+        fi
+
+        /tmp/muon/muon "${ARGS[@]}"
+      env:
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        MUON_TEST_PATH: ${{ inputs.test-path }}
+        MUON_TIMEOUT: ${{ inputs.timeout }}
+        MUON_REPORT_FORMAT: ${{ inputs.report-format }}
+        MUON_VERBOSE: ${{ inputs.verbose }}
+        MUON_FILTER: ${{ inputs.filter }}
+        MUON_BASE_URL: ${{ inputs.base-url }}
+        MUON_API_URL: ${{ inputs.api-url }}
+        MUON_API_KEY: ${{ inputs.api-key }}
+
+    - name: Upload test reports
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: scenario-test-reports
+        path: /tmp/scenario-reports/
+        if-no-files-found: ignore

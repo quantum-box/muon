@@ -1,0 +1,15 @@
+name: JSON length missing path scenario
+description: Expect failure when json_lengths references missing path
+
+config:
+  base_url: __BASE_URL__
+
+steps:
+  - name: 存在しないパスの長さを検証する
+    request:
+      method: GET
+      url: /sample
+    expect:
+      status: 200
+      json_lengths:
+        data.missing: 1

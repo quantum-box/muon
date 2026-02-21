@@ -1,0 +1,19 @@
+name: JSON length success scenario
+description: Verify arrays and objects lengths using json_lengths
+
+config:
+  base_url: __BASE_URL__
+  timeout: 5
+
+steps:
+  - name: 正常な配列とオブジェクトの長さを検証する
+    request:
+      method: GET
+      url: /sample
+    expect:
+      status: 200
+      json:
+        data.kind: list
+      json_lengths:
+        data.items: 2
+        data.map: 3

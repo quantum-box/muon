@@ -1,0 +1,16 @@
+name: JSON length zero scenario
+description: Verify zero-length collections can be asserted
+
+config:
+  base_url: __BASE_URL__
+
+steps:
+  - name: 空配列と空オブジェクトの長さを検証する
+    request:
+      method: GET
+      url: /empty
+    expect:
+      status: 200
+      json_lengths:
+        data.items: 0
+        data.map: 0
