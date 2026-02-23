@@ -39,6 +39,7 @@ mod tests {
         let scenario = TestScenario {
             name: "テストシナリオ".to_string(),
             description: Some("これはテストシナリオです".to_string()),
+            tags: vec![],
             steps: vec![TestStep {
                 id: None,
                 name: "ステップ1".to_string(),

@@ -11,6 +11,9 @@ pub struct TestScenario {
     /// TODO: add English documentation
     #[serde(default)]
     pub description: Option<String>,
+    /// Tags for filtering and grouping scenarios.
+    #[serde(default)]
+    pub tags: Vec<String>,
     /// TODO: add English documentation
     pub steps: Vec<TestStep>,
     /// TODO: add English documentation

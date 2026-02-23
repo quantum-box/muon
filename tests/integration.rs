@@ -163,12 +163,20 @@ impl Drop for TestServer {
 fn load_scenario(path: &str, base_url: &str) -> TestScenario {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let scenario_path = manifest_dir.join("tests/fixtures").join(path);
-    let yaml = fs::read_to_string(&scenario_path).unwrap_or_else(|e| {
+    let content = fs::read_to_string(&scenario_path).unwrap_or_else(|e| {
         panic!("failed to read {scenario_path:?}: {e}")
     });
-    let yaml = yaml.replace("__BASE_URL__", base_url);
-    TestScenario::from_yaml(&yaml)
-        .unwrap_or_else(|e| panic!("failed to parse scenario yaml: {e}"))
+    let content = content.replace("__BASE_URL__", base_url);
+
+    if path.ends_with(".scenario.md") {
+        TestScenario::from_markdown(&content).unwrap_or_else(|e| {
+            panic!("failed to parse scenario markdown: {e}")
+        })
+    } else {
+        TestScenario::from_yaml(&content).unwrap_or_else(|e| {
+            panic!("failed to parse scenario yaml: {e}")
+        })
+    }
 }
 
 #[tokio::test]
@@ -457,6 +465,82 @@ async fn status_mismatch_produces_failure() {
         .expect("runner returned error for status mismatch");
 
     assert!(!result.success, "scenario should fail");
+    assert_error_contains(
+        &result,
+        "ステータスコードが期待値と一致しません",
+    );
+
+    server.shutdown().await;
+}
+
+// ── Markdown scenario tests ──────────────────────────
+
+#[tokio::test]
+async fn markdown_json_match_succeeds() {
+    let server = TestServer::spawn().await;
+    let scenario = load_scenario(
+        "json_match_success.scenario.md",
+        &server.base_url,
+    );
+    let runner = DefaultTestRunner::new();
+
+    let result = runner
+        .run(&scenario)
+        .await
+        .expect("runner returned error for markdown json match");
+
+    assert!(
+        result.success,
+        "markdown scenario should succeed: {:?}",
+        result.error
+    );
+
+    server.shutdown().await;
+}
+
+#[tokio::test]
+async fn markdown_multi_step_succeeds() {
+    let server = TestServer::spawn().await;
+    let scenario = load_scenario(
+        "multi_step_markdown.scenario.md",
+        &server.base_url,
+    );
+    let runner = DefaultTestRunner::new();
+
+    let result = runner
+        .run(&scenario)
+        .await
+        .expect("runner returned error for multi-step markdown");
+
+    assert!(
+        result.success,
+        "multi-step markdown scenario should succeed: {:?}",
+        result.error
+    );
+    assert_eq!(
+        result.steps.len(),
+        3,
+        "expected 3 steps from 3 yaml scenario blocks"
+    );
+
+    server.shutdown().await;
+}
+
+#[tokio::test]
+async fn markdown_status_mismatch_produces_failure() {
+    let server = TestServer::spawn().await;
+    let scenario = load_scenario(
+        "markdown_status_mismatch.scenario.md",
+        &server.base_url,
+    );
+    let runner = DefaultTestRunner::new();
+
+    let result = runner
+        .run(&scenario)
+        .await
+        .expect("runner returned error for markdown status mismatch");
+
+    assert!(!result.success, "markdown scenario should fail");
     assert_error_contains(
         &result,
         "ステータスコードが期待値と一致しません",

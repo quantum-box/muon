@@ -1,6 +1,6 @@
 # muon
 
-Declarative YAML-based API scenario testing framework written in Rust.
+Declarative API scenario testing framework written in Rust. Supports both YAML and Markdown formats.
 
 ## Features
 
@@ -75,7 +75,16 @@ muon -p tests/scenarios \
   --api-key $TACHYON_OPS_API_KEY
 ```
 
-## Scenario file format
+## Scenario file formats
+
+Muon supports two file formats for scenario definitions:
+
+| Format | Extension | Best for |
+|--------|-----------|----------|
+| YAML | `.yaml` / `.yml` | Simple, compact test definitions |
+| Markdown | `.scenario.md` | Documentation-rich scenarios with explanations |
+
+### YAML format
 
 ```yaml
 name: User API CRUD
@@ -125,6 +134,106 @@ steps:
     expect:
       status: 204
 ```
+
+### Markdown format (`.scenario.md`)
+
+Markdown scenarios combine documentation and test definitions in a single file.
+They use YAML front matter for metadata and `yaml scenario` fenced code blocks for test steps.
+
+#### Structure
+
+1. **YAML front matter** (`---`) — scenario metadata, config, and variables
+2. **Markdown headings and text** — documentation explaining the test intent
+3. **`yaml scenario` code blocks** — test step definitions (same syntax as YAML format)
+
+````markdown
+---
+name: User API CRUD
+description: Test user lifecycle
+config:
+  base_url: http://localhost:3000
+  headers:
+    Authorization: Bearer test-token
+    Content-Type: application/json
+  timeout: 30
+---
+
+# User API CRUD
+
+Verify the complete user lifecycle: create, retrieve, and delete.
+
+## Step 1: Create user
+
+Create a new user and save the ID for subsequent steps.
+
+```yaml scenario
+steps:
+  - id: create_user
+    name: Create user
+    request:
+      method: POST
+      url: /api/users
+      body:
+        name: "Test User"
+        email: "test@example.com"
+    expect:
+      status: 201
+      json:
+        name: "Test User"
+    save:
+      user_id: id
+```
+
+## Step 2: Get user
+
+Retrieve the created user by ID and verify the returned data.
+
+```yaml scenario
+steps:
+  - id: get_user
+    name: Get user
+    request:
+      method: GET
+      url: /api/users/{{steps.create_user.outputs.user_id}}
+    expect:
+      status: 200
+      json:
+        name: "Test User"
+```
+
+## Step 3: Delete user
+
+Clean up by deleting the user.
+
+```yaml scenario
+steps:
+  - id: delete_user
+    name: Delete user
+    request:
+      method: DELETE
+      url: /api/users/{{steps.create_user.outputs.user_id}}
+    expect:
+      status: 204
+```
+````
+
+#### Key differences from YAML format
+
+- `config` and `vars` go in the front matter, not at the top level
+- Each `yaml scenario` block contains a `steps` array (can have one or more steps)
+- Steps across blocks share context — variables saved in earlier blocks are available in later ones
+- Use `{{steps.<step_id>.outputs.<path>}}` to reference values from previous steps
+- The `id` field on steps is recommended for cross-block references
+
+#### Converting from YAML to Markdown
+
+1. Move `name`, `description`, `config`, `tags`, and `vars` into the front matter
+2. Add a title heading (`# ...`) and description paragraph
+3. Group related steps into `yaml scenario` code blocks
+4. Add `## Section` headings with explanatory text before each block
+5. Add `id` fields to steps that are referenced by later steps
+
+See [docs/markdown-guide.md](docs/markdown-guide.md) for detailed conversion guidelines.
 
 ## GitHub Action
 

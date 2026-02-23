@@ -46,7 +46,6 @@ struct FrontMatter {
     #[serde(default)]
     config: TestConfig,
     #[serde(default)]
-    #[allow(dead_code)]
     tags: Vec<String>,
 }
 
@@ -127,6 +126,7 @@ pub fn parse_markdown_scenario(input: &str) -> Result<TestScenario> {
     Ok(TestScenario {
         name: fm.name,
         description: fm.description,
+        tags: fm.tags,
         steps: all_steps,
         vars: fm.vars,
         config: merged_config,
