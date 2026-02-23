@@ -478,10 +478,8 @@ async fn status_mismatch_produces_failure() {
 #[tokio::test]
 async fn markdown_json_match_succeeds() {
     let server = TestServer::spawn().await;
-    let scenario = load_scenario(
-        "json_match_success.scenario.md",
-        &server.base_url,
-    );
+    let scenario =
+        load_scenario("json_match_success.scenario.md", &server.base_url);
     let runner = DefaultTestRunner::new();
 
     let result = runner
@@ -501,10 +499,8 @@ async fn markdown_json_match_succeeds() {
 #[tokio::test]
 async fn markdown_multi_step_succeeds() {
     let server = TestServer::spawn().await;
-    let scenario = load_scenario(
-        "multi_step_markdown.scenario.md",
-        &server.base_url,
-    );
+    let scenario =
+        load_scenario("multi_step_markdown.scenario.md", &server.base_url);
     let runner = DefaultTestRunner::new();
 
     let result = runner
