@@ -13,7 +13,12 @@ pub fn get_by_json_path<'a>(
     let mut current = json;
 
     for part in parts {
-        match current.get(part) {
+        // Try string key first (objects), then numeric index
+        // (arrays).
+        let resolved = current.get(part).or_else(|| {
+            part.parse::<usize>().ok().and_then(|idx| current.get(idx))
+        });
+        match resolved {
             Some(value) => current = value,
             None => return None,
         }

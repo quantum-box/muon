@@ -286,7 +286,14 @@ impl DefaultTestRunner {
             let mut current = &json_body;
 
             for part in parts {
-                if let Some(value) = current.get(part) {
+                // Try string key first (objects), then numeric
+                // index (arrays).
+                let resolved = current.get(part).or_else(|| {
+                    part.parse::<usize>()
+                        .ok()
+                        .and_then(|idx| current.get(idx))
+                });
+                if let Some(value) = resolved {
                     current = value;
                 } else {
                     return Err(anyhow!(
