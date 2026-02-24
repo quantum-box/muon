@@ -48,7 +48,6 @@ pub struct TestStep {
     pub condition: Option<String>,
 
     // ── runn-compatible fields ──────────────────────────
-
     /// CEL expression-based assertion (runn-compatible).
     /// Evaluated after `expect:`. Both must pass for the step
     /// to succeed.

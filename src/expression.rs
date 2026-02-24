@@ -59,13 +59,11 @@ fn preprocess_expr(expr: &str) -> String {
     });
 
     static TYPE_RE: LazyLock<Regex> = LazyLock::new(|| {
-        Regex::new(r"\btype\(")
-            .expect("failed to compile type regex")
+        Regex::new(r"\btype\(").expect("failed to compile type regex")
     });
 
     let result = LEN_RE.replace_all(expr, "size(").into_owned();
-    let result =
-        TYPE_RE.replace_all(&result, "type_of(").into_owned();
+    let result = TYPE_RE.replace_all(&result, "type_of(").into_owned();
 
     result
 }
@@ -77,9 +75,7 @@ fn compile(expr: &str) -> Result<Program> {
         .map_err(|e| anyhow!("CEL compile error for '{processed}': {e}"))
 }
 
-fn build_context<'a>(
-    vars: &HashMap<String, Value>,
-) -> Result<Context<'a>> {
+fn build_context<'a>(vars: &HashMap<String, Value>) -> Result<Context<'a>> {
     let mut context = Context::default();
 
     for (key, value) in vars {
@@ -100,10 +96,10 @@ fn build_context<'a>(
 
 fn register_custom_functions(context: &mut Context<'_>) {
     // compare(a, b) - deep equality check returning bool
-    context.add_function(
-        "compare",
-        |a: cel::Value, b: cel::Value| -> bool { a == b },
-    );
+    context
+        .add_function("compare", |a: cel::Value, b: cel::Value| -> bool {
+            a == b
+        });
 
     // diff(a, b) - returns string description of differences
     context.add_function(
@@ -118,35 +114,29 @@ fn register_custom_functions(context: &mut Context<'_>) {
     );
 
     // type_of(x) - returns type name as string (runn: type())
-    context.add_function(
-        "type_of",
-        |v: cel::Value| -> Arc<String> {
-            let t = match v {
-                cel::Value::Int(_) => "int",
-                cel::Value::UInt(_) => "uint",
-                cel::Value::Float(_) => "double",
-                cel::Value::String(_) => "string",
-                cel::Value::Bool(_) => "bool",
-                cel::Value::List(_) => "list",
-                cel::Value::Map(_) => "map",
-                cel::Value::Null => "null",
-                cel::Value::Bytes(_) => "bytes",
-                _ => "unknown",
-            };
-            Arc::new(t.to_string())
-        },
-    );
+    context.add_function("type_of", |v: cel::Value| -> Arc<String> {
+        let t = match v {
+            cel::Value::Int(_) => "int",
+            cel::Value::UInt(_) => "uint",
+            cel::Value::Float(_) => "double",
+            cel::Value::String(_) => "string",
+            cel::Value::Bool(_) => "bool",
+            cel::Value::List(_) => "list",
+            cel::Value::Map(_) => "map",
+            cel::Value::Null => "null",
+            cel::Value::Bytes(_) => "bytes",
+            _ => "unknown",
+        };
+        Arc::new(t.to_string())
+    });
 
     // urlencode(str) - URL-encode a string
-    context.add_function(
-        "urlencode",
-        |s: Arc<String>| -> Arc<String> {
-            Arc::new(
-                url::form_urlencoded::byte_serialize(s.as_bytes())
-                    .collect::<String>(),
-            )
-        },
-    );
+    context.add_function("urlencode", |s: Arc<String>| -> Arc<String> {
+        Arc::new(
+            url::form_urlencoded::byte_serialize(s.as_bytes())
+                .collect::<String>(),
+        )
+    });
 }
 
 fn cel_value_is_truthy(value: &cel::Value) -> bool {
@@ -174,13 +164,8 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    fn make_vars(
-        pairs: Vec<(&str, Value)>,
-    ) -> HashMap<String, Value> {
-        pairs
-            .into_iter()
-            .map(|(k, v)| (k.to_string(), v))
-            .collect()
+    fn make_vars(pairs: Vec<(&str, Value)>) -> HashMap<String, Value> {
+        pairs.into_iter().map(|(k, v)| (k.to_string(), v)).collect()
     }
 
     #[test]
@@ -214,27 +199,16 @@ mod tests {
             }),
         )]);
 
-        assert!(
-            evaluate_test("current.res.status == 200", &vars).unwrap()
-        );
-        assert!(evaluate_test(
-            "current.res.body.name == \"alice\"",
-            &vars
-        )
-        .unwrap());
-        assert!(evaluate_test(
-            "size(current.res.body.items) == 3",
-            &vars
-        )
-        .unwrap());
+        assert!(evaluate_test("current.res.status == 200", &vars).unwrap());
+        assert!(evaluate_test("current.res.body.name == \"alice\"", &vars)
+            .unwrap());
+        assert!(evaluate_test("size(current.res.body.items) == 3", &vars)
+            .unwrap());
     }
 
     #[test]
     fn test_len_alias() {
-        let vars = make_vars(vec![(
-            "items",
-            json!([1, 2, 3]),
-        )]);
+        let vars = make_vars(vec![("items", json!([1, 2, 3]))]);
         // `len()` should be preprocessed to `size()`
         assert!(evaluate_test("len(items) == 3", &vars).unwrap());
         assert!(evaluate_test("len(items) > 0", &vars).unwrap());
@@ -242,33 +216,17 @@ mod tests {
 
     #[test]
     fn test_string_functions() {
-        let vars = make_vars(vec![(
-            "name",
-            json!("hello_world"),
-        )]);
-        assert!(
-            evaluate_test("name.contains(\"hello\")", &vars).unwrap()
-        );
-        assert!(
-            evaluate_test("name.startsWith(\"hello\")", &vars).unwrap()
-        );
-        assert!(
-            evaluate_test("name.endsWith(\"world\")", &vars).unwrap()
-        );
+        let vars = make_vars(vec![("name", json!("hello_world"))]);
+        assert!(evaluate_test("name.contains(\"hello\")", &vars).unwrap());
+        assert!(evaluate_test("name.startsWith(\"hello\")", &vars).unwrap());
+        assert!(evaluate_test("name.endsWith(\"world\")", &vars).unwrap());
     }
 
     #[test]
     fn test_regex_matches() {
-        let vars = make_vars(vec![(
-            "id",
-            json!("us_01abc123"),
-        )]);
-        assert!(
-            evaluate_test("id.matches(\"^us_\")", &vars).unwrap()
-        );
-        assert!(
-            !evaluate_test("id.matches(\"^admin_\")", &vars).unwrap()
-        );
+        let vars = make_vars(vec![("id", json!("us_01abc123"))]);
+        assert!(evaluate_test("id.matches(\"^us_\")", &vars).unwrap());
+        assert!(!evaluate_test("id.matches(\"^admin_\")", &vars).unwrap());
     }
 
     #[test]
@@ -307,85 +265,43 @@ mod tests {
             ("a", json!([1, 2])),
             ("m", json!({"x": 1})),
         ]);
-        assert!(evaluate_test(
-            "type_of(s) == \"string\"",
-            &vars
-        )
-        .unwrap());
-        assert!(
-            evaluate_test("type_of(n) == \"int\"", &vars).unwrap()
-        );
-        assert!(evaluate_test(
-            "type_of(u) == \"uint\"",
-            &vars
-        )
-        .unwrap());
-        assert!(evaluate_test(
-            "type_of(f) == \"double\"",
-            &vars
-        )
-        .unwrap());
-        assert!(evaluate_test(
-            "type_of(b) == \"bool\"",
-            &vars
-        )
-        .unwrap());
-        assert!(evaluate_test(
-            "type_of(a) == \"list\"",
-            &vars
-        )
-        .unwrap());
-        assert!(
-            evaluate_test("type_of(m) == \"map\"", &vars).unwrap()
-        );
+        assert!(evaluate_test("type_of(s) == \"string\"", &vars).unwrap());
+        assert!(evaluate_test("type_of(n) == \"int\"", &vars).unwrap());
+        assert!(evaluate_test("type_of(u) == \"uint\"", &vars).unwrap());
+        assert!(evaluate_test("type_of(f) == \"double\"", &vars).unwrap());
+        assert!(evaluate_test("type_of(b) == \"bool\"", &vars).unwrap());
+        assert!(evaluate_test("type_of(a) == \"list\"", &vars).unwrap());
+        assert!(evaluate_test("type_of(m) == \"map\"", &vars).unwrap());
     }
 
     #[test]
     fn test_type_alias() {
         // `type(x)` should be preprocessed to `type_of(x)`
         let vars = make_vars(vec![("x", json!("hello"))]);
-        assert!(evaluate_test(
-            "type(x) == \"string\"",
-            &vars
-        )
-        .unwrap());
+        assert!(evaluate_test("type(x) == \"string\"", &vars).unwrap());
     }
 
     #[test]
     fn test_has_builtin() {
-        let vars = make_vars(vec![(
-            "obj",
-            json!({"name": "alice", "age": 30}),
-        )]);
-        assert!(
-            evaluate_test("has(obj.name)", &vars).unwrap()
-        );
+        let vars =
+            make_vars(vec![("obj", json!({"name": "alice", "age": 30}))]);
+        assert!(evaluate_test("has(obj.name)", &vars).unwrap());
         // has() on non-existent field should return false
-        assert!(
-            !evaluate_test("has(obj.email)", &vars).unwrap()
-        );
+        assert!(!evaluate_test("has(obj.email)", &vars).unwrap());
     }
 
     #[test]
     fn test_in_operator() {
-        let vars = make_vars(vec![(
-            "items",
-            json!(["a", "b", "c"]),
-        )]);
-        assert!(
-            evaluate_test("\"a\" in items", &vars).unwrap()
-        );
-        assert!(
-            !evaluate_test("\"z\" in items", &vars).unwrap()
-        );
+        let vars = make_vars(vec![("items", json!(["a", "b", "c"]))]);
+        assert!(evaluate_test("\"a\" in items", &vars).unwrap());
+        assert!(!evaluate_test("\"z\" in items", &vars).unwrap());
     }
 
     #[test]
     fn test_ternary_operator() {
         let vars = make_vars(vec![("x", json!(10))]);
         let v =
-            resolve_value("x > 5 ? \"big\" : \"small\"", &vars)
-                .unwrap();
+            resolve_value("x > 5 ? \"big\" : \"small\"", &vars).unwrap();
         assert_eq!(v, json!("big"));
     }
 
@@ -398,10 +314,7 @@ mod tests {
 
     #[test]
     fn test_urlencode_function() {
-        let vars = make_vars(vec![(
-            "q",
-            json!("hello world&foo=bar"),
-        )]);
+        let vars = make_vars(vec![("q", json!("hello world&foo=bar"))]);
         let v = resolve_value("urlencode(q)", &vars).unwrap();
         assert_eq!(v, json!("hello+world%26foo%3Dbar"));
     }

@@ -173,9 +173,8 @@ fn load_scenario(path: &str, base_url: &str) -> TestScenario {
             panic!("failed to parse scenario markdown: {e}")
         })
     } else if path.contains(".runbook.") || path.contains(".runn.") {
-        TestScenario::from_runbook(&content).unwrap_or_else(|e| {
-            panic!("failed to parse runn runbook: {e}")
-        })
+        TestScenario::from_runbook(&content)
+            .unwrap_or_else(|e| panic!("failed to parse runn runbook: {e}"))
     } else {
         TestScenario::from_yaml(&content).unwrap_or_else(|e| {
             panic!("failed to parse scenario yaml: {e}")
@@ -554,8 +553,7 @@ async fn markdown_status_mismatch_produces_failure() {
 #[tokio::test]
 async fn test_expression_succeeds() {
     let server = TestServer::spawn().await;
-    let scenario =
-        load_scenario("test_expression.yaml", &server.base_url);
+    let scenario = load_scenario("test_expression.yaml", &server.base_url);
     let runner = DefaultTestRunner::new();
 
     let result = runner
@@ -578,10 +576,8 @@ async fn test_expression_succeeds() {
 #[tokio::test]
 async fn runn_runbook_basic_succeeds() {
     let server = TestServer::spawn().await;
-    let scenario = load_scenario(
-        "runn_basic.runbook.yml",
-        &server.base_url,
-    );
+    let scenario =
+        load_scenario("runn_basic.runbook.yml", &server.base_url);
     let runner = DefaultTestRunner::new();
 
     let result = runner

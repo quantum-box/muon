@@ -105,9 +105,7 @@ fn find_http_runner_url(
     // Fall back to any string value that looks like a URL
     for value in runners.values() {
         if let Value::String(url) = value {
-            if url.starts_with("http://")
-                || url.starts_with("https://")
-            {
+            if url.starts_with("http://") || url.starts_with("https://") {
                 return Some(url.clone());
             }
         }
@@ -125,17 +123,12 @@ fn convert_steps(
     match &runbook.steps {
         RunnSteps::Map(mapping) => {
             for (key, value) in mapping {
-                let step_name = key
-                    .as_str()
-                    .unwrap_or("unnamed")
-                    .to_string();
-                let step =
-                    convert_single_step(&step_name, value, base_url)
-                        .with_context(|| {
-                            format!(
-                                "Failed to convert step '{step_name}'"
-                            )
-                        })?;
+                let step_name =
+                    key.as_str().unwrap_or("unnamed").to_string();
+                let step = convert_single_step(&step_name, value, base_url)
+                    .with_context(|| {
+                        format!("Failed to convert step '{step_name}'")
+                    })?;
                 if let Some(s) = step {
                     steps.push(s);
                 }
@@ -144,14 +137,13 @@ fn convert_steps(
         RunnSteps::List(list) => {
             for (idx, value) in list.iter().enumerate() {
                 let step_name = format!("step_{}", idx + 1);
-                let step =
-                    convert_single_step(&step_name, value, base_url)
-                        .with_context(|| {
-                            format!(
-                                "Failed to convert step at \
+                let step = convert_single_step(&step_name, value, base_url)
+                    .with_context(|| {
+                        format!(
+                            "Failed to convert step at \
                                  index {idx}"
-                            )
-                        })?;
+                        )
+                    })?;
                 if let Some(s) = step {
                     steps.push(s);
                 }
@@ -175,8 +167,8 @@ fn convert_single_step(
     };
 
     // Extract req section
-    let req_value = mapping
-        .get(&serde_yaml::Value::String("req".to_string()));
+    let req_value =
+        mapping.get(&serde_yaml::Value::String("req".to_string()));
 
     let request = if let Some(req) = req_value {
         parse_runn_request(req, base_url)?
@@ -199,10 +191,7 @@ fn convert_single_step(
         .map(|m| {
             m.iter()
                 .filter_map(|(k, v)| {
-                    Some((
-                        k.as_str()?.to_string(),
-                        v.as_str()?.to_string(),
-                    ))
+                    Some((k.as_str()?.to_string(), v.as_str()?.to_string()))
                 })
                 .collect()
         })
@@ -288,16 +277,10 @@ fn parse_runn_request(
         .ok_or_else(|| anyhow!("req path must be a string"))?;
 
     let url = if let Some(base) = base_url {
-        if path.starts_with("http://")
-            || path.starts_with("https://")
-        {
+        if path.starts_with("http://") || path.starts_with("https://") {
             path.to_string()
         } else {
-            format!(
-                "{}{}",
-                base.trim_end_matches('/'),
-                path
-            )
+            format!("{}{}", base.trim_end_matches('/'), path)
         }
     } else {
         path.to_string()
@@ -326,11 +309,7 @@ fn parse_runn_request(
         "PATCH" => HttpMethod::Patch,
         "HEAD" => HttpMethod::Head,
         "OPTIONS" => HttpMethod::Options,
-        _ => {
-            return Err(anyhow!(
-                "Unsupported HTTP method: {method_str}"
-            ))
-        }
+        _ => return Err(anyhow!("Unsupported HTTP method: {method_str}")),
     };
 
     // Parse headers and body from details
@@ -344,21 +323,17 @@ fn parse_runn_request(
         {
             if let Some(hm) = h.as_mapping() {
                 for (k, v) in hm {
-                    if let (Some(key), Some(val)) =
-                        (k.as_str(), v.as_str())
+                    if let (Some(key), Some(val)) = (k.as_str(), v.as_str())
                     {
-                        headers.insert(
-                            key.to_string(),
-                            val.to_string(),
-                        );
+                        headers.insert(key.to_string(), val.to_string());
                     }
                 }
             }
         }
 
         // Body — runn uses `body: { "application/json": { ... } }`
-        if let Some(b) = detail_map
-            .get(&serde_yaml::Value::String("body".to_string()))
+        if let Some(b) =
+            detail_map.get(&serde_yaml::Value::String("body".to_string()))
         {
             body = extract_body(b);
         }
@@ -414,10 +389,8 @@ fn infer_status_from_test(test: Option<&str>) -> Option<u16> {
     use std::sync::LazyLock;
 
     static STATUS_RE: LazyLock<Regex> = LazyLock::new(|| {
-        Regex::new(
-            r"current\.res\.status\s*==\s*(\d+)",
-        )
-        .expect("failed to compile status regex")
+        Regex::new(r"current\.res\.status\s*==\s*(\d+)")
+            .expect("failed to compile status regex")
     });
 
     let expr = test?;
@@ -485,14 +458,8 @@ steps:
         let step1 = &scenario.steps[0];
         assert_eq!(step1.name, "create_user");
         assert_eq!(step1.id, Some("create_user".to_string()));
-        assert_eq!(
-            step1.request.url,
-            "http://localhost:3000/api/users"
-        );
-        assert!(matches!(
-            step1.request.method,
-            HttpMethod::Post
-        ));
+        assert_eq!(step1.request.url, "http://localhost:3000/api/users");
+        assert!(matches!(step1.request.method, HttpMethod::Post));
         assert!(step1.request.body.is_some());
         assert!(step1.test.is_some());
         assert_eq!(step1.expect.status, 201); // inferred
@@ -501,10 +468,7 @@ steps:
         // Second step
         let step2 = &scenario.steps[1];
         assert_eq!(step2.name, "get_user");
-        assert!(matches!(
-            step2.request.method,
-            HttpMethod::Get
-        ));
+        assert!(matches!(step2.request.method, HttpMethod::Get));
     }
 
     #[test]
@@ -583,9 +547,7 @@ steps:
     #[test]
     fn test_infer_status_from_test_expression() {
         assert_eq!(
-            infer_status_from_test(Some(
-                "current.res.status == 201"
-            )),
+            infer_status_from_test(Some("current.res.status == 201")),
             Some(201)
         );
         assert_eq!(
@@ -608,9 +570,7 @@ steps:
     fn test_is_runbook_file() {
         use std::path::Path;
         assert!(is_runbook_file(Path::new("test.runbook.yml")));
-        assert!(is_runbook_file(Path::new(
-            "test.runbook.yaml"
-        )));
+        assert!(is_runbook_file(Path::new("test.runbook.yaml")));
         assert!(is_runbook_file(Path::new("test.runn.yml")));
         assert!(is_runbook_file(Path::new("test.runn.yaml")));
         assert!(!is_runbook_file(Path::new("test.yaml")));
@@ -631,14 +591,8 @@ steps:
 "#;
         let scenario = parse_runbook(yaml).unwrap();
         let step = &scenario.steps[0];
-        assert!(matches!(
-            step.request.method,
-            HttpMethod::Get
-        ));
-        assert_eq!(
-            step.request.url,
-            "http://localhost:8080/health"
-        );
+        assert!(matches!(step.request.method, HttpMethod::Get));
+        assert_eq!(step.request.url, "http://localhost:8080/health");
         assert!(step.request.body.is_none());
     }
 

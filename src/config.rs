@@ -50,11 +50,10 @@ impl TestConfigManager {
                 path.display()
             ))?
         } else if crate::runn_parser::is_runbook_file(path) {
-            crate::runn_parser::parse_runbook(&content)
-                .context(format!(
-                    "Failed to parse runn runbook from {}",
-                    path.display()
-                ))?
+            crate::runn_parser::parse_runbook(&content).context(format!(
+                "Failed to parse runn runbook from {}",
+                path.display()
+            ))?
         } else {
             TestScenario::from_yaml(&content).context(format!(
                 "Failed to parse YAML from {}",
