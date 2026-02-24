@@ -5,8 +5,10 @@
 
 pub mod api_client;
 pub mod config;
+pub mod expression;
 pub mod markdown_parser;
 pub mod model;
+pub mod runn_parser;
 pub mod runner;
 pub mod sse;
 pub mod validator;
@@ -64,6 +66,10 @@ mod tests {
                 },
                 save: HashMap::new(),
                 condition: None,
+                test: None,
+                bind: HashMap::new(),
+                loop_config: None,
+                include: None,
             }],
             vars: HashMap::new(),
             config: model::TestConfig {

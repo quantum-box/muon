@@ -24,27 +24,90 @@ pub struct TestScenario {
     pub config: TestConfig,
 }
 
-/// TODO: add English documentation
+/// A single step in a test scenario.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TestStep {
-    /// TODO: add English documentation
+    /// Human-readable step name.
     pub name: String,
-    /// TODO: add English documentation
+    /// Optional step identifier for cross-step references.
     #[serde(default)]
     pub id: Option<String>,
-    /// TODO: add English documentation
+    /// Optional description of the step.
     #[serde(default)]
     pub description: Option<String>,
-    /// TODO: add English documentation
+    /// HTTP request to send.
     pub request: HttpRequest,
-    /// TODO: add English documentation
+    /// Declarative response expectations (muon native).
     pub expect: ResponseExpectation,
-    /// TODO: add English documentation
+    /// Save response values into variables (muon native, JSON
+    /// path based).
     #[serde(default)]
     pub save: HashMap<String, String>,
-    /// TODO: add English documentation
+    /// Condition for skipping the step.
     #[serde(default)]
     pub condition: Option<String>,
+
+    // ── runn-compatible fields ──────────────────────────
+
+    /// CEL expression-based assertion (runn-compatible).
+    /// Evaluated after `expect:`. Both must pass for the step
+    /// to succeed.
+    #[serde(default)]
+    pub test: Option<String>,
+
+    /// Expression-based variable binding (runn-compatible).
+    /// Evaluated after `save:`. Keys are variable names, values
+    /// are CEL expressions resolved against the context.
+    #[serde(default)]
+    pub bind: HashMap<String, String>,
+
+    /// Loop/retry configuration (runn-compatible).
+    #[serde(default)]
+    pub loop_config: Option<LoopConfig>,
+
+    /// Include an external scenario file (runn-compatible).
+    #[serde(default)]
+    pub include: Option<IncludeConfig>,
+}
+
+/// Configuration for including an external scenario file.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IncludeConfig {
+    /// Path to the external scenario file (relative to the
+    /// current scenario).
+    pub path: String,
+    /// Variables to pass to the included scenario (override
+    /// its defaults).
+    #[serde(default)]
+    pub vars: HashMap<String, serde_json::Value>,
+}
+
+/// Loop/retry configuration for a step.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoopConfig {
+    /// Maximum number of iterations.
+    #[serde(default = "default_loop_count")]
+    pub count: u32,
+    /// CEL expression; loop stops when this evaluates to true.
+    #[serde(default)]
+    pub until: Option<String>,
+    /// Base interval between iterations in seconds.
+    #[serde(default = "default_loop_interval")]
+    pub interval: f64,
+    /// Multiplier for exponential backoff.
+    #[serde(default)]
+    pub multiplier: Option<f64>,
+    /// Maximum interval in seconds.
+    #[serde(default)]
+    pub max_interval: Option<f64>,
+}
+
+fn default_loop_count() -> u32 {
+    3
+}
+
+fn default_loop_interval() -> f64 {
+    1.0
 }
 
 /// TODO: add English documentation
@@ -197,6 +260,14 @@ impl TestScenario {
     /// fenced code blocks that define `steps`.
     pub fn from_markdown(md: &str) -> Result<Self, anyhow::Error> {
         crate::markdown_parser::parse_markdown_scenario(md)
+    }
+
+    /// Parse a scenario from a runn-format runbook YAML string.
+    ///
+    /// Converts runn's runbook structure (runners, steps with
+    /// `req:`, `test:`, `bind:`) into muon's internal model.
+    pub fn from_runbook(yaml: &str) -> Result<Self, anyhow::Error> {
+        crate::runn_parser::parse_runbook(yaml)
     }
 }
 

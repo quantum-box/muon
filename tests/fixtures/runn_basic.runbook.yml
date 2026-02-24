@@ -1,0 +1,24 @@
+desc: Basic runn runbook test
+labels:
+  - integration
+  - runn
+runners:
+  req: __BASE_URL__
+steps:
+  get_sample:
+    req:
+      /sample:
+        get:
+    test: |
+      current.res.status == 200
+      && current.res.body.data.kind == "list"
+      && size(current.res.body.data.items) == 2
+    bind:
+      first_item_id: current.res.body.data.items[0].id
+  get_headers:
+    req:
+      /headers:
+        get:
+    test: |
+      current.res.status == 200
+      && current.res.body.data.message == "header response"

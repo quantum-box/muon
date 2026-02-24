@@ -1,0 +1,30 @@
+name: CEL test expression validation
+config:
+  base_url: __BASE_URL__
+steps:
+  - id: get_sample
+    name: Get sample data
+    request:
+      method: GET
+      url: /sample
+    expect:
+      status: 200
+    test: |
+      current.res.status == 200
+      && current.res.body.data.kind == "list"
+      && size(current.res.body.data.items) == 2
+    bind:
+      first_item: current.res.body.data.items[0].id
+      item_count: size(current.res.body.data.items)
+
+  - id: get_nested
+    name: Get nested data with previous
+    request:
+      method: GET
+      url: /nested
+    expect:
+      status: 200
+    test: |
+      current.res.status == 200
+      && size(current.res.body.data.groups) == 2
+      && current.res.body.data.groups[0].name == "alpha"

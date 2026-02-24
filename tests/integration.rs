@@ -172,6 +172,10 @@ fn load_scenario(path: &str, base_url: &str) -> TestScenario {
         TestScenario::from_markdown(&content).unwrap_or_else(|e| {
             panic!("failed to parse scenario markdown: {e}")
         })
+    } else if path.contains(".runbook.") || path.contains(".runn.") {
+        TestScenario::from_runbook(&content).unwrap_or_else(|e| {
+            panic!("failed to parse runn runbook: {e}")
+        })
     } else {
         TestScenario::from_yaml(&content).unwrap_or_else(|e| {
             panic!("failed to parse scenario yaml: {e}")
@@ -541,6 +545,56 @@ async fn markdown_status_mismatch_produces_failure() {
         &result,
         "ステータスコードが期待値と一致しません",
     );
+
+    server.shutdown().await;
+}
+
+// ── CEL test: expression tests ────────────────────────
+
+#[tokio::test]
+async fn test_expression_succeeds() {
+    let server = TestServer::spawn().await;
+    let scenario =
+        load_scenario("test_expression.yaml", &server.base_url);
+    let runner = DefaultTestRunner::new();
+
+    let result = runner
+        .run(&scenario)
+        .await
+        .expect("runner returned error for test expression");
+
+    assert!(
+        result.success,
+        "CEL test expression scenario should succeed: {:?}",
+        result.error
+    );
+    assert_eq!(result.steps.len(), 2);
+
+    server.shutdown().await;
+}
+
+// ── runn runbook import tests ─────────────────────────
+
+#[tokio::test]
+async fn runn_runbook_basic_succeeds() {
+    let server = TestServer::spawn().await;
+    let scenario = load_scenario(
+        "runn_basic.runbook.yml",
+        &server.base_url,
+    );
+    let runner = DefaultTestRunner::new();
+
+    let result = runner
+        .run(&scenario)
+        .await
+        .expect("runner returned error for runn runbook");
+
+    assert!(
+        result.success,
+        "runn runbook scenario should succeed: {:?}",
+        result.error
+    );
+    assert_eq!(result.steps.len(), 2);
 
     server.shutdown().await;
 }
