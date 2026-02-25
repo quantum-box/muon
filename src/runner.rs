@@ -418,7 +418,8 @@ impl DefaultTestRunner {
         Ok((response, req_info))
     }
 
-    /// TODO: add English documentation
+    /// Extract values from the response body and store them as
+    /// variables for subsequent steps.
     async fn save_variables(
         &self,
         save: &HashMap<String, String>,
@@ -429,31 +430,14 @@ impl DefaultTestRunner {
             return Ok(());
         }
 
-        // TODO: add English comment
         let json_body: Value = serde_json::from_str(body)
             .context("Failed to parse response as JSON")?;
 
         for (var_name, json_path) in save {
-            // TODO: add English comment
-            let parts: Vec<&str> = json_path.split('.').collect();
-            let mut current = &json_body;
-
-            for part in parts {
-                // Try string key first (objects), then numeric
-                // index (arrays).
-                let resolved = current.get(part).or_else(|| {
-                    part.parse::<usize>()
-                        .ok()
-                        .and_then(|idx| current.get(idx))
-                });
-                if let Some(value) = resolved {
-                    current = value;
-                } else {
-                    return Err(anyhow!(
-                        "JSON path '{json_path}' not found in response"
-                    ));
-                }
-            }
+            let current = Self::get_value_by_path(&json_body, json_path)
+                .ok_or_else(|| {
+                    anyhow!("JSON path '{json_path}' not found in response")
+                })?;
 
             vars.insert(var_name.clone(), current.clone());
             debug!(
