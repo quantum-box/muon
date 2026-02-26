@@ -125,6 +125,7 @@ impl DefaultTestRunner {
         if let Some(ref loop_cfg) = step.loop_config {
             let max = loop_cfg.count;
             let mut interval = loop_cfg.interval;
+            let mut last_result: Option<StepResult> = None;
 
             for i in 0..max {
                 debug!(
@@ -172,6 +173,8 @@ impl DefaultTestRunner {
                     }
                 }
 
+                last_result = result;
+
                 // Wait before next iteration (unless last)
                 if i + 1 < max {
                     tokio::time::sleep(Duration::from_secs_f64(interval))
@@ -187,17 +190,7 @@ impl DefaultTestRunner {
             }
 
             // All iterations exhausted — return last result
-            // Re-execute one final time to get the result
-            self.execute_step_once(
-                step,
-                vars,
-                config,
-                steps_map,
-                step_idx,
-                step_key_counts,
-                previous_value,
-            )
-            .await
+            Ok(last_result)
         } else {
             self.execute_step_once(
                 step,
