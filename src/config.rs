@@ -49,6 +49,11 @@ impl TestConfigManager {
                 "Failed to parse Markdown scenario from {}",
                 path.display()
             ))?
+        } else if crate::runn_parser::is_runbook_file(path) {
+            crate::runn_parser::parse_runbook(&content).context(format!(
+                "Failed to parse runn runbook from {}",
+                path.display()
+            ))?
         } else {
             TestScenario::from_yaml(&content).context(format!(
                 "Failed to parse YAML from {}",
@@ -132,9 +137,12 @@ impl Default for TestConfigManager {
 }
 
 /// Return `true` if the file path looks like a scenario file
-/// (`.yaml`, `.yml`, or `.scenario.md`).
+/// (`.yaml`, `.yml`, `.scenario.md`, or `.runbook.yml`).
 fn is_scenario_file(path: &Path) -> bool {
     if is_markdown_scenario(path) {
+        return true;
+    }
+    if crate::runn_parser::is_runbook_file(path) {
         return true;
     }
     path.extension()
