@@ -168,7 +168,7 @@ fn convert_single_step(
 
     // Extract req section
     let req_value =
-        mapping.get(&serde_yaml::Value::String("req".to_string()));
+        mapping.get(serde_yaml::Value::String("req".to_string()));
 
     let request = if let Some(req) = req_value {
         parse_runn_request(req, base_url)?
@@ -180,13 +180,13 @@ fn convert_single_step(
 
     // Extract test expression
     let test = mapping
-        .get(&serde_yaml::Value::String("test".to_string()))
+        .get(serde_yaml::Value::String("test".to_string()))
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 
     // Extract bind
     let bind = mapping
-        .get(&serde_yaml::Value::String("bind".to_string()))
+        .get(serde_yaml::Value::String("bind".to_string()))
         .and_then(|v| v.as_mapping())
         .map(|m| {
             m.iter()
@@ -199,13 +199,13 @@ fn convert_single_step(
 
     // Extract desc
     let desc = mapping
-        .get(&serde_yaml::Value::String("desc".to_string()))
+        .get(serde_yaml::Value::String("desc".to_string()))
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 
     // Extract loop
     let loop_config = mapping
-        .get(&serde_yaml::Value::String("loop".to_string()))
+        .get(serde_yaml::Value::String("loop".to_string()))
         .and_then(|v| {
             serde_yaml::from_value::<RunnLoopConfig>(v.clone()).ok()
         })
@@ -318,8 +318,8 @@ fn parse_runn_request(
 
     if let Some(detail_map) = details.as_mapping() {
         // Headers
-        if let Some(h) = detail_map
-            .get(&serde_yaml::Value::String("headers".to_string()))
+        if let Some(h) =
+            detail_map.get(serde_yaml::Value::String("headers".to_string()))
         {
             if let Some(hm) = h.as_mapping() {
                 for (k, v) in hm {
@@ -333,7 +333,7 @@ fn parse_runn_request(
 
         // Body — runn uses `body: { "application/json": { ... } }`
         if let Some(b) =
-            detail_map.get(&serde_yaml::Value::String("body".to_string()))
+            detail_map.get(serde_yaml::Value::String("body".to_string()))
         {
             body = extract_body(b);
         }

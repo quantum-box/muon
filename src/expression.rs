@@ -108,7 +108,7 @@ fn register_custom_functions(context: &mut Context<'_>) {
             if a == b {
                 Arc::new(String::new())
             } else {
-                Arc::new(format!("expected {:?}, got {:?}", b, a))
+                Arc::new(format!("expected {b:?}, got {a:?}"))
             }
         },
     );
@@ -258,9 +258,9 @@ mod tests {
     fn test_type_of_function() {
         let vars = make_vars(vec![
             ("s", json!("hello")),
-            ("n", json!(-5)),   // negative → CEL int
-            ("u", json!(42)),   // positive → CEL uint
-            ("f", json!(3.14)), // float → CEL double
+            ("n", json!(-5)),    // negative → CEL int
+            ("u", json!(42)),    // positive → CEL uint
+            ("f", json!(3.125)), // float → CEL double
             ("b", json!(true)),
             ("a", json!([1, 2])),
             ("m", json!({"x": 1})),

@@ -112,6 +112,7 @@ impl DefaultTestRunner {
     }
 
     /// Execute a single step with optional loop/retry.
+    #[allow(clippy::too_many_arguments)]
     async fn execute_step_with_loop(
         &self,
         step: &TestStep,
