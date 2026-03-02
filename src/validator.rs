@@ -9,6 +9,11 @@ pub fn get_by_json_path<'a>(
     json: &'a Value,
     path: &str,
 ) -> Option<&'a Value> {
+    // Strip JSONPath root accessor prefix (e.g. "$.foo" → "foo")
+    let path = path
+        .strip_prefix("$.")
+        .or_else(|| path.strip_prefix('$'))
+        .unwrap_or(path);
     let parts: Vec<&str> = path.split('.').collect();
     let mut current = json;
 

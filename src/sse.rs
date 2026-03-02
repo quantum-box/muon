@@ -362,6 +362,11 @@ fn expand_value_deep(
 
 /// Navigate into a JSON value by dot-separated path.
 fn get_by_path<'a>(value: &'a Value, path: &str) -> Option<&'a Value> {
+    // Strip JSONPath root accessor prefix (e.g. "$.foo" → "foo")
+    let path = path
+        .strip_prefix("$.")
+        .or_else(|| path.strip_prefix('$'))
+        .unwrap_or(path);
     let mut current = value;
     for part in path.split('.') {
         if part.is_empty() {
