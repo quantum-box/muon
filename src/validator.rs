@@ -152,10 +152,12 @@ pub fn validate_data_eq(
                         ));
                     }
                     (Some(a_val), None) => {
-                        errors.push(format!(
-                            "data_eq '{child_path}': unexpected field \
-                             (value: {a_val:?})"
-                        ));
+                        if !a_val.is_null() {
+                            errors.push(format!(
+                                "data_eq '{child_path}': unexpected field \
+                                 (value: {a_val:?})"
+                            ));
+                        }
                     }
                     (None, Some(e_val)) => {
                         errors.push(format!(
