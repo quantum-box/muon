@@ -184,6 +184,11 @@ pub struct SseExpectation {
     /// Ordered event assertions with data validation
     #[serde(default)]
     pub events: Vec<SseEventExpectation>,
+    /// Exact event type sequence. Every event in the stream must
+    /// match this sequence in order, with no extra events allowed.
+    /// Example: `["attempt_completion", "usage", "done"]`
+    #[serde(default)]
+    pub event_sequence: Vec<String>,
 }
 
 /// A single SSE event assertion

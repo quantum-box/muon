@@ -216,6 +216,12 @@ impl DefaultTestRunner {
             return Some(current);
         }
 
+        // Strip JSONPath root accessor prefix (e.g. "$.foo" → "foo")
+        let path = path
+            .strip_prefix("$.")
+            .or_else(|| path.strip_prefix('$'))
+            .unwrap_or(path);
+
         for part in path.split('.') {
             if part.is_empty() {
                 continue;

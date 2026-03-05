@@ -147,6 +147,20 @@ pub fn validate_sse(
         }
     }
 
+    // Level 1.5: event_sequence — exact full-stream match
+    if !expect.event_sequence.is_empty() {
+        let actual: Vec<&str> =
+            events.iter().map(|e| e.event_type.as_str()).collect();
+        let expected: Vec<&str> =
+            expect.event_sequence.iter().map(|s| s.as_str()).collect();
+        if actual != expected {
+            errors.push(format!(
+                "SSE event_sequence mismatch — expected: {expected:?}, \
+                 actual: {actual:?}"
+            ));
+        }
+    }
+
     // Level 2: ordered event assertions
     if !expect.events.is_empty() {
         validate_ordered_events(
@@ -362,6 +376,11 @@ fn expand_value_deep(
 
 /// Navigate into a JSON value by dot-separated path.
 fn get_by_path<'a>(value: &'a Value, path: &str) -> Option<&'a Value> {
+    // Strip JSONPath root accessor prefix (e.g. "$.foo" → "foo")
+    let path = path
+        .strip_prefix("$.")
+        .or_else(|| path.strip_prefix('$'))
+        .unwrap_or(path);
     let mut current = value;
     for part in path.split('.') {
         if part.is_empty() {
@@ -447,6 +466,41 @@ mod tests {
     }
 
     #[test]
+    fn test_validate_event_sequence_pass() {
+        let events = parse_sse_events(sample_sse_body());
+        let expect = SseExpectation {
+            event_sequence: vec![
+                "say".into(),
+                "tool_call".into(),
+                "tool_call_args".into(),
+                "tool_result".into(),
+                "usage".into(),
+                "done".into(),
+            ],
+            ..Default::default()
+        };
+
+        let identity = |s: &str| s.to_string();
+        let (errors, _) = validate_sse(&events, &expect, &identity);
+        assert!(errors.is_empty(), "Errors: {errors:?}");
+    }
+
+    #[test]
+    fn test_validate_event_sequence_mismatch() {
+        let events = parse_sse_events(sample_sse_body());
+        // Wrong order
+        let expect = SseExpectation {
+            event_sequence: vec!["done".into(), "usage".into()],
+            ..Default::default()
+        };
+
+        let identity = |s: &str| s.to_string();
+        let (errors, _) = validate_sse(&events, &expect, &identity);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("event_sequence mismatch"));
+    }
+
+    #[test]
     fn test_validate_has_events() {
         let events = parse_sse_events(sample_sse_body());
         let expect = SseExpectation {
@@ -457,6 +511,7 @@ mod tests {
             ],
             has_no_events: vec!["error".into()],
             events: vec![],
+            ..Default::default()
         };
 
         let identity = |s: &str| s.to_string();
@@ -469,8 +524,7 @@ mod tests {
         let events = parse_sse_events(sample_sse_body());
         let expect = SseExpectation {
             has_events: vec!["nonexistent".into()],
-            has_no_events: vec![],
-            events: vec![],
+            ..Default::default()
         };
 
         let identity = |s: &str| s.to_string();
@@ -483,9 +537,8 @@ mod tests {
     fn test_validate_has_no_events_violation() {
         let events = parse_sse_events(sample_sse_body());
         let expect = SseExpectation {
-            has_events: vec![],
             has_no_events: vec!["usage".into()],
-            events: vec![],
+            ..Default::default()
         };
 
         let identity = |s: &str| s.to_string();
@@ -505,8 +558,6 @@ mod tests {
         data_tc_args.insert("tool_id".to_string(), json!("{{tc_id}}"));
 
         let expect = SseExpectation {
-            has_events: vec![],
-            has_no_events: vec![],
             events: vec![
                 SseEventExpectation {
                     event: "tool_call".into(),
@@ -569,6 +620,7 @@ mod tests {
                     save: HashMap::new(),
                 },
             ],
+            ..Default::default()
         };
 
         let identity = |s: &str| s.to_string();
@@ -581,8 +633,6 @@ mod tests {
     fn test_validate_data_mismatch() {
         let events = parse_sse_events(sample_sse_body());
         let expect = SseExpectation {
-            has_events: vec![],
-            has_no_events: vec![],
             events: vec![SseEventExpectation {
                 event: "tool_call".into(),
                 data: {
@@ -596,6 +646,7 @@ mod tests {
                 data_exists: vec![],
                 save: HashMap::new(),
             }],
+            ..Default::default()
         };
 
         let identity = |s: &str| s.to_string();
@@ -608,8 +659,6 @@ mod tests {
     fn test_validate_data_contains_failure() {
         let events = parse_sse_events(sample_sse_body());
         let expect = SseExpectation {
-            has_events: vec![],
-            has_no_events: vec![],
             events: vec![SseEventExpectation {
                 event: "tool_result".into(),
                 data: HashMap::new(),
@@ -619,6 +668,7 @@ mod tests {
                 data_exists: vec![],
                 save: HashMap::new(),
             }],
+            ..Default::default()
         };
 
         let identity = |s: &str| s.to_string();
@@ -631,8 +681,6 @@ mod tests {
     fn test_validate_event_not_found() {
         let events = parse_sse_events("event: done\ndata: {}\n\n");
         let expect = SseExpectation {
-            has_events: vec![],
-            has_no_events: vec![],
             events: vec![SseEventExpectation {
                 event: "tool_call".into(),
                 data: HashMap::new(),
@@ -642,6 +690,7 @@ mod tests {
                 data_exists: vec![],
                 save: HashMap::new(),
             }],
+            ..Default::default()
         };
 
         let identity = |s: &str| s.to_string();
