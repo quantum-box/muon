@@ -147,16 +147,26 @@ pub fn validate_sse(
         }
     }
 
-    // Level 1.5: event_sequence — exact full-stream match
+    // Level 1.5: event_sequence — match with consecutive dedup
     if !expect.event_sequence.is_empty() {
-        let actual: Vec<&str> =
+        let actual_raw: Vec<&str> =
             events.iter().map(|e| e.event_type.as_str()).collect();
+        // Collapse consecutive same-type events for comparison.
+        // SSE streams often emit multiple chunks of the same type
+        // (e.g. streaming "say" text), so we compare event type
+        // transitions rather than exact counts.
+        let mut actual: Vec<&str> = Vec::new();
+        for &event_type in &actual_raw {
+            if actual.last().copied() != Some(event_type) {
+                actual.push(event_type);
+            }
+        }
         let expected: Vec<&str> =
             expect.event_sequence.iter().map(|s| s.as_str()).collect();
         if actual != expected {
             errors.push(format!(
                 "SSE event_sequence mismatch — expected: {expected:?}, \
-                 actual: {actual:?}"
+                 actual (deduped): {actual:?} (raw: {actual_raw:?})"
             ));
         }
     }
@@ -498,6 +508,29 @@ mod tests {
         let (errors, _) = validate_sse(&events, &expect, &identity);
         assert_eq!(errors.len(), 1);
         assert!(errors[0].contains("event_sequence mismatch"));
+    }
+
+    #[test]
+    fn test_validate_event_sequence_dedup() {
+        // Simulate streaming: multiple consecutive "say" events
+        let body = "\
+            event: say\ndata: {\"text\":\"H\"}\n\n\
+            event: say\ndata: {\"text\":\"e\"}\n\n\
+            event: say\ndata: {\"text\":\"l\"}\n\n\
+            event: say\ndata: {\"text\":\"l\"}\n\n\
+            event: say\ndata: {\"text\":\"o\"}\n\n\
+            event: done\ndata: {}\n\n";
+        let events = parse_sse_events(body);
+
+        // After dedup, sequence should be ["say", "done"]
+        let expect = SseExpectation {
+            event_sequence: vec!["say".into(), "done".into()],
+            ..Default::default()
+        };
+
+        let identity = |s: &str| s.to_string();
+        let (errors, _) = validate_sse(&events, &expect, &identity);
+        assert!(errors.is_empty(), "Errors: {errors:?}");
     }
 
     #[test]
