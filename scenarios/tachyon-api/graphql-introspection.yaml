@@ -1,0 +1,36 @@
+name: GraphQL Introspection
+description: Verify GraphQL endpoint responds to introspection query
+tags:
+  - tachyon
+  - graphql
+
+config:
+  base_url: http://localhost:50154
+  headers:
+    Authorization: Bearer dummy-token
+    x-operator-id: tn_01hjryxysgey07h5jz5wagqj0m
+    Content-Type: application/json
+  timeout: 15
+
+steps:
+  - id: introspect
+    name: Run GraphQL introspection query
+    request:
+      method: POST
+      url: /v1/graphql
+      body:
+        query: |
+          {
+            __schema {
+              queryType { name }
+              mutationType { name }
+              types { name kind }
+            }
+          }
+    expect:
+      status: 200
+      json:
+        data.__schema.queryType.name: QueryRoot
+    test: |
+      current.res.status == 200
+      && has(current.res.body.data.__schema)

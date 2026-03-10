@@ -1,0 +1,23 @@
+name: Auth - List Policies
+description: Retrieve auth policies and actions for the operator
+tags:
+  - tachyon
+  - auth
+
+config:
+  base_url: http://localhost:50154
+  headers:
+    Authorization: Bearer dummy-token
+    x-operator-id: tn_01hjryxysgey07h5jz5wagqj0m
+  timeout: 15
+
+steps:
+  - id: list_policies
+    name: List available policies
+    request:
+      method: GET
+      url: /v1/auth/policies
+    expect:
+      status: 200
+    test: |
+      current.res.status == 200

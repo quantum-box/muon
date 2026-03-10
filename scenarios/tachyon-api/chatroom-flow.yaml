@@ -1,0 +1,58 @@
+name: LLM Chatroom Flow
+description: Create a chatroom, list chatrooms, and clean up
+tags:
+  - tachyon
+  - llm
+  - chatroom
+
+config:
+  base_url: http://localhost:50154
+  headers:
+    Authorization: Bearer dummy-token
+    x-operator-id: tn_01hjryxysgey07h5jz5wagqj0m
+    Content-Type: application/json
+  timeout: 20
+
+steps:
+  - id: create_chatroom
+    name: Create a new chatroom
+    request:
+      method: POST
+      url: /v1/llms/chatrooms
+      body:
+        name: "Muon Test Room"
+    expect:
+      status: 201
+    test: |
+      current.res.status == 201
+      && has(current.res.body.id)
+    bind:
+      chatroom_id: "current.res.body.id"
+
+  - id: list_chatrooms
+    name: List chatrooms
+    request:
+      method: GET
+      url: /v1/llms/chatrooms
+    expect:
+      status: 200
+    test: |
+      current.res.status == 200
+
+  - id: get_chatroom
+    name: Get the created chatroom
+    request:
+      method: GET
+      url: "/v1/llms/chatrooms/{{steps.create_chatroom.chatroom_id}}"
+    expect:
+      status: 200
+      json:
+        name: "Muon Test Room"
+
+  - id: delete_chatroom
+    name: Delete the chatroom
+    request:
+      method: DELETE
+      url: "/v1/llms/chatrooms/{{steps.create_chatroom.chatroom_id}}"
+    expect:
+      status: 200

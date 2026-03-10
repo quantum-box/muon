@@ -1,0 +1,20 @@
+name: Tachyon API Health Check
+description: Verify the API is running and responds to basic health checks
+tags:
+  - tachyon
+  - health
+
+config:
+  base_url: http://localhost:50154
+  timeout: 10
+
+steps:
+  - id: health
+    name: Root health endpoint returns OK
+    request:
+      method: GET
+      url: /
+    expect:
+      status: 200
+      contains:
+        - "OK"

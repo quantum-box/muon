@@ -1,0 +1,60 @@
+name: Order - Product CRUD
+description: Create, retrieve, list, and delete a product via REST API
+tags:
+  - tachyon
+  - order
+  - crud
+
+config:
+  base_url: http://localhost:50154
+  headers:
+    Authorization: Bearer dummy-token
+    x-operator-id: tn_01hjryxysgey07h5jz5wagqj0m
+    Content-Type: application/json
+  timeout: 20
+
+steps:
+  - id: create_product
+    name: Create a test product
+    request:
+      method: POST
+      url: /v1/order/products
+      body:
+        name: "Muon Test Product"
+        kind: "one_time"
+        status: "active"
+    expect:
+      status: 201
+    test: |
+      current.res.status == 201
+      && has(current.res.body.id)
+    bind:
+      product_id: "current.res.body.id"
+
+  - id: get_product
+    name: Retrieve the created product
+    request:
+      method: GET
+      url: "/v1/order/products/{{steps.create_product.product_id}}"
+    expect:
+      status: 200
+      json:
+        name: "Muon Test Product"
+
+  - id: list_products
+    name: List products and verify our product exists
+    request:
+      method: GET
+      url: /v1/order/products
+    expect:
+      status: 200
+    test: |
+      current.res.status == 200
+
+  - id: delete_product
+    name: Delete the test product
+    request:
+      method: DELETE
+      url: "/v1/order/products/{{steps.create_product.product_id}}"
+    expect:
+      status: 200
