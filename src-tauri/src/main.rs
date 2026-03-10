@@ -10,6 +10,7 @@ mod import;
 
 use db::HistoryDb;
 use std::sync::Arc;
+use tauri::Manager;
 
 fn main() {
     tauri::Builder::default()
