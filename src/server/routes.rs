@@ -3,13 +3,15 @@
 use crate::model::TestScenario;
 use crate::runner::DefaultTestRunner;
 use crate::server::sse::run_event_stream;
-use crate::server::state::{AppState, RunRecord, RunStatus};
+use crate::server::state::{AppState, RunRecord, RunStatus, ScenarioInfo};
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use chrono::Utc;
+use serde::Deserialize;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::error;
@@ -17,8 +19,13 @@ use tracing::error;
 /// Build the API sub-router with all endpoints.
 pub fn api_routes() -> Router<Arc<AppState>> {
     Router::new()
-        .route("/scenarios", get(list_scenarios))
-        .route("/scenarios/{id}", get(get_scenario))
+        .route("/scenarios", get(list_scenarios).post(create_scenario))
+        .route(
+            "/scenarios/{id}",
+            get(get_scenario)
+                .put(update_scenario)
+                .delete(delete_scenario),
+        )
         .route("/scenarios/{id}/run", post(run_scenario))
         .route("/runs", get(list_runs))
         .route("/runs/{id}", get(get_run))
@@ -138,4 +145,140 @@ async fn get_run(
     let runs = state.runs.read().await;
     let record = runs.get(&id).ok_or(StatusCode::NOT_FOUND)?;
     Ok(Json(record.clone()))
+}
+
+// ── Scenario CRUD ──────────────────────────────────────
+
+/// JSON body for creating or updating a scenario.
+#[derive(Debug, Deserialize)]
+struct ScenarioPayload {
+    name: String,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    tags: Vec<String>,
+    #[serde(default)]
+    steps: Vec<crate::model::TestStep>,
+    #[serde(default)]
+    vars: HashMap<String, serde_json::Value>,
+    #[serde(default)]
+    config: crate::model::TestConfig,
+}
+
+impl ScenarioPayload {
+    fn into_scenario(self) -> TestScenario {
+        TestScenario {
+            name: self.name,
+            description: self.description,
+            tags: self.tags,
+            steps: self.steps,
+            vars: self.vars,
+            config: self.config,
+        }
+    }
+}
+
+/// `PUT /api/scenarios/:id` — Update an existing scenario.
+async fn update_scenario(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(payload): Json<ScenarioPayload>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let file_path = {
+        let scenarios = state.scenarios.read().await;
+        let info = scenarios
+            .iter()
+            .find(|s| s.id == id)
+            .ok_or(StatusCode::NOT_FOUND)?;
+        info.file_path.clone()
+    };
+
+    let scenario = payload.into_scenario();
+    let yaml = scenario.to_yaml().map_err(|e| {
+        error!("Failed to serialize scenario: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    std::fs::write(&file_path, &yaml).map_err(|e| {
+        error!("Failed to write scenario file: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    // Reload to update in-memory state
+    state.reload_scenarios().await;
+
+    Ok(Json(scenario))
+}
+
+/// `POST /api/scenarios` — Create a new scenario.
+async fn create_scenario(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<ScenarioPayload>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let filename = slugify(&payload.name) + ".yaml";
+    let file_path = state.scenario_dir.join(&filename);
+
+    if file_path.exists() {
+        return Err(StatusCode::CONFLICT);
+    }
+
+    let scenario = payload.into_scenario();
+    let yaml = scenario.to_yaml().map_err(|e| {
+        error!("Failed to serialize scenario: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    // Ensure directory exists
+    if let Some(parent) = file_path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| {
+            error!("Failed to create directory: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    }
+
+    std::fs::write(&file_path, &yaml).map_err(|e| {
+        error!("Failed to write scenario file: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    state.reload_scenarios().await;
+
+    let info = ScenarioInfo::from_scenario(&scenario, &file_path);
+    Ok((StatusCode::CREATED, Json(info)))
+}
+
+/// `DELETE /api/scenarios/:id` — Delete a scenario file.
+async fn delete_scenario(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let file_path = {
+        let scenarios = state.scenarios.read().await;
+        let info = scenarios
+            .iter()
+            .find(|s| s.id == id)
+            .ok_or(StatusCode::NOT_FOUND)?;
+        info.file_path.clone()
+    };
+
+    std::fs::remove_file(&file_path).map_err(|e| {
+        error!("Failed to delete scenario file: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    state.reload_scenarios().await;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Convert a name into a filesystem-safe slug.
+fn slugify(name: &str) -> String {
+    name.to_lowercase()
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { '-' })
+        .collect::<String>()
+        .split('-')
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("-")
 }

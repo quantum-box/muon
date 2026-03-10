@@ -4,9 +4,11 @@
 //! running and monitoring test scenarios from a web UI.
 //! The frontend is embedded into the binary via `rust-embed`.
 
+pub mod environments;
 pub mod routes;
 pub mod sse;
 pub mod state;
+pub mod validation;
 pub mod watcher;
 
 use axum::http::{header, StatusCode};
@@ -30,6 +32,8 @@ pub fn create_router(state: Arc<AppState>) -> Router {
 
     Router::new()
         .nest("/api", routes::api_routes())
+        .nest("/api", environments::env_routes())
+        .nest("/api", validation::validation_routes())
         .with_state(state)
         .layer(cors)
         .fallback(static_handler)
