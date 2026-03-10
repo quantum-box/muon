@@ -10,6 +10,7 @@ pub mod markdown_parser;
 pub mod model;
 pub mod runn_parser;
 pub mod runner;
+pub mod server;
 pub mod sse;
 pub mod validator;
 
