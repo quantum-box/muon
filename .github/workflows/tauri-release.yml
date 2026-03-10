@@ -57,6 +57,9 @@ jobs:
       - name: Install frontend dependencies
         run: cd ui && npm install
 
+      - name: Build frontend
+        run: cd ui && npm run build
+
       - name: Install Linux system dependencies
         if: matrix.platform == 'ubuntu-22.04'
         run: |
