@@ -1,0 +1,27 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-surface: #1e293b;
+  --color-border: #334155;
+}
+
+/* JSON syntax highlighting */
+.json-key { color: #c4b5fd; }
+.json-string { color: #6ee7b7; }
+.json-number { color: #fbbf24; }
+.json-boolean { color: #f472b6; }
+.json-null { color: #94a3b8; }
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+/* Spinner animation */
+@keyframes spin { to { transform: rotate(360deg); } }
+.animate-spin { animation: spin 1s linear infinite; }
+
+/* Pulse animation for running state */
+@keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+.animate-pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }

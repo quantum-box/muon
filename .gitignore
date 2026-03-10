@@ -1,2 +1,7 @@
 /target
 Cargo.lock
+
+# Frontend
+ui/node_modules
+ui/dist
+ui/*.tsbuildinfo
