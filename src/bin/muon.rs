@@ -84,7 +84,7 @@ enum Command {
         #[arg(long, default_value = "9800")]
         port: u16,
         /// Scenario directory path.
-        #[arg(long = "path")]
+        #[arg(long = "scenario-path")]
         scenario_path: Option<String>,
         /// Open browser automatically.
         #[arg(long)]
