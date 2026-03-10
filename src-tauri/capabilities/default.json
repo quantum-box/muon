@@ -1,0 +1,13 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicholasgasior/wt/.schema/core/capability.json",
+  "identifier": "default",
+  "description": "Default capabilities for the Muon desktop app",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "shell:allow-open",
+    "dialog:default",
+    "fs:default",
+    "store:default"
+  ]
+}
