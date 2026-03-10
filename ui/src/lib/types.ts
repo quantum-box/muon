@@ -109,3 +109,54 @@ export interface RunHistoryEntry {
   started_at: string
   result: ScenarioResult | null
 }
+
+// Environment types
+export interface Environment {
+  name: string
+  variables: Record<string, string>
+}
+
+export interface EnvironmentListItem {
+  name: string
+  variable_count: number
+}
+
+// Validation
+export interface ValidationResult {
+  valid: boolean
+  errors: string[]
+}
+
+// Key-value pair for editors
+export interface KeyValuePair {
+  key: string
+  value: string
+  enabled: boolean
+}
+
+// HTTP methods
+export const HTTP_METHODS = [
+  'GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS',
+] as const
+export type HttpMethod = (typeof HTTP_METHODS)[number]
+
+// Content types for body
+export const CONTENT_TYPES = [
+  'application/json',
+  'application/x-www-form-urlencoded',
+  'multipart/form-data',
+  'text/plain',
+  'application/xml',
+] as const
+
+// Step editor tab types
+export type StepEditorTab = 'params' | 'headers' | 'body' | 'auth' | 'tests' | 'variables'
+export type ResponseViewerTab = 'pretty' | 'raw' | 'headers' | 'tests'
+
+// Test assertion result
+export interface AssertionResult {
+  expression: string
+  expected: unknown
+  actual: unknown
+  passed: boolean
+}
