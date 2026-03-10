@@ -88,6 +88,17 @@ jobs:
           tauriScript: ./ui/node_modules/.bin/tauri
           args: --target ${{ matrix.target }}
 
+      - name: Ad-hoc codesign macOS app
+        if: startsWith(matrix.target, 'x86_64-apple-darwin') || startsWith(matrix.target, 'aarch64-apple-darwin')
+        run: |
+          APP_PATH=$(find src-tauri/target/${{ matrix.target }}/release/bundle/macos -name "*.app" -maxdepth 1 | head -1)
+          if [ -n "$APP_PATH" ]; then
+            echo "Signing $APP_PATH"
+            codesign --force --deep -s - "$APP_PATH"
+            echo "Verifying signature..."
+            codesign --verify --verbose "$APP_PATH"
+          fi
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
