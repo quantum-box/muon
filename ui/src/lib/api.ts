@@ -1,4 +1,12 @@
-import type { ScenarioSummary, ScenarioDetail, RunEvent, RunHistoryEntry } from './types'
+import type {
+  ScenarioSummary,
+  ScenarioDetail,
+  RunEvent,
+  RunHistoryEntry,
+  Environment,
+  EnvironmentListItem,
+  ValidationResult,
+} from './types'
 
 const BASE = ''
 
@@ -84,4 +92,82 @@ export function runScenario(
   })()
 
   return () => controller.abort()
+}
+
+// Scenario CRUD
+export async function createScenario(data: {
+  name: string
+  yaml: string
+}): Promise<ScenarioDetail> {
+  const res = await fetch(`${BASE}/api/scenarios`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) throw new Error(`Failed to create scenario: ${res.status}`)
+  return res.json()
+}
+
+export async function updateScenario(
+  id: string,
+  data: Partial<{ name: string; yaml: string; steps: unknown[] }>,
+): Promise<ScenarioDetail> {
+  const res = await fetch(`${BASE}/api/scenarios/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) throw new Error(`Failed to update scenario: ${res.status}`)
+  return res.json()
+}
+
+export async function deleteScenario(id: string): Promise<void> {
+  const res = await fetch(`${BASE}/api/scenarios/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok) throw new Error(`Failed to delete scenario: ${res.status}`)
+}
+
+// Environment CRUD
+export async function listEnvironments(): Promise<EnvironmentListItem[]> {
+  const res = await fetch(`${BASE}/api/environments`)
+  if (!res.ok) throw new Error(`Failed to fetch environments: ${res.status}`)
+  return res.json()
+}
+
+export async function getEnvironment(name: string): Promise<Environment> {
+  const res = await fetch(`${BASE}/api/environments/${encodeURIComponent(name)}`)
+  if (!res.ok) throw new Error(`Failed to fetch environment: ${res.status}`)
+  return res.json()
+}
+
+export async function updateEnvironment(
+  name: string,
+  data: { variables: Record<string, string> },
+): Promise<Environment> {
+  const res = await fetch(`${BASE}/api/environments/${encodeURIComponent(name)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) throw new Error(`Failed to update environment: ${res.status}`)
+  return res.json()
+}
+
+export async function deleteEnvironment(name: string): Promise<void> {
+  const res = await fetch(`${BASE}/api/environments/${encodeURIComponent(name)}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok) throw new Error(`Failed to delete environment: ${res.status}`)
+}
+
+// Validation
+export async function validateYaml(yaml: string): Promise<ValidationResult> {
+  const res = await fetch(`${BASE}/api/validate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ yaml }),
+  })
+  if (!res.ok) throw new Error(`Validation request failed: ${res.status}`)
+  return res.json()
 }
