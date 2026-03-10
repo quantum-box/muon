@@ -1,6 +1,6 @@
 [package]
 name = "muon"
-version = "0.1.0"
+version = "0.3.0"
 edition = "2021"
 description = "Declarative YAML-based API scenario testing framework"
 license = "MIT"
