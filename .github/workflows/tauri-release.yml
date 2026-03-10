@@ -57,9 +57,6 @@ jobs:
       - name: Install frontend dependencies
         run: cd ui && npm ci
 
-      - name: Install Tauri CLI
-        run: npm install -g @tauri-apps/cli@latest
-
       - name: Install Linux system dependencies
         if: matrix.platform == 'ubuntu-22.04'
         run: |
@@ -85,8 +82,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          projectPath: src-tauri
-          tauriScript: npx tauri
+          tauriScript: ./ui/node_modules/.bin/tauri
           args: --target ${{ matrix.target }}
 
       - name: Upload build artifacts
