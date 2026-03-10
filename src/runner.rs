@@ -7,10 +7,32 @@ use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use regex::Regex;
 use reqwest::{Client, Method as ReqMethod, Response};
+use serde::Serialize;
 use serde_json::{Map, Number, Value};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
+use tokio::sync::mpsc;
 use tracing::{debug, error, info, instrument, warn};
+
+/// Events emitted during scenario execution for real-time
+/// streaming to connected clients.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum RunEvent {
+    /// Emitted when a scenario begins execution.
+    ScenarioStarted { name: String, step_count: usize },
+    /// Emitted when a step begins execution.
+    StepStarted { index: usize, name: String },
+    /// Emitted when a step finishes execution.
+    StepCompleted { index: usize, result: StepResult },
+    /// Emitted when a variable is saved or updated.
+    VariableUpdated {
+        key: String,
+        value: serde_json::Value,
+    },
+    /// Emitted when the entire scenario finishes.
+    ScenarioCompleted { result: TestResult },
+}
 
 /// Test runner trait
 #[async_trait]
@@ -994,6 +1016,96 @@ impl DefaultTestRunner {
             response: response_info,
             duration_ms,
         }))
+    }
+}
+
+impl DefaultTestRunner {
+    /// Execute a scenario while sending [`RunEvent`]s to the
+    /// provided channel. This enables real-time SSE streaming
+    /// of execution progress to connected web clients.
+    ///
+    /// The existing [`TestRunner::run`] method is preserved
+    /// unchanged for CLI backward compatibility.
+    pub async fn run_with_events(
+        &self,
+        scenario: &TestScenario,
+        tx: mpsc::Sender<RunEvent>,
+    ) -> Result<TestResult> {
+        let start_time = Instant::now();
+        let mut scenario_success = true;
+        let mut step_results = Vec::new();
+        let mut vars = scenario.vars.clone();
+        let mut steps_map: Map<String, Value> = Map::new();
+        let mut step_key_counts: HashMap<String, usize> = HashMap::new();
+        let mut previous_value: Option<Value> = None;
+
+        let _ = tx
+            .send(RunEvent::ScenarioStarted {
+                name: scenario.name.clone(),
+                step_count: scenario.steps.len(),
+            })
+            .await;
+
+        for (step_idx, step) in scenario.steps.iter().enumerate() {
+            let _ = tx
+                .send(RunEvent::StepStarted {
+                    index: step_idx,
+                    name: step.name.clone(),
+                })
+                .await;
+
+            let result = self
+                .execute_step_with_loop(
+                    step,
+                    &mut vars,
+                    &scenario.config,
+                    &mut steps_map,
+                    step_idx,
+                    &mut step_key_counts,
+                    &mut previous_value,
+                )
+                .await?;
+
+            if let Some(step_result) = result {
+                let failed = !step_result.success;
+
+                let _ = tx
+                    .send(RunEvent::StepCompleted {
+                        index: step_idx,
+                        result: step_result.clone(),
+                    })
+                    .await;
+
+                step_results.push(step_result);
+
+                if failed {
+                    scenario_success = false;
+                    if !scenario.config.continue_on_failure {
+                        break;
+                    }
+                }
+            }
+        }
+
+        let result = TestResult {
+            name: scenario.name.clone(),
+            success: scenario_success,
+            error: if scenario_success {
+                None
+            } else {
+                Some("一部のステップが失敗しました".to_string())
+            },
+            steps: step_results,
+            duration_ms: start_time.elapsed().as_millis() as u64,
+        };
+
+        let _ = tx
+            .send(RunEvent::ScenarioCompleted {
+                result: result.clone(),
+            })
+            .await;
+
+        Ok(result)
     }
 }
 

@@ -2,10 +2,12 @@
 
 use anyhow::{anyhow, Context, Result};
 use chrono::Utc;
-use clap::{Parser, ValueEnum};
+use clap::{Parser, Subcommand, ValueEnum};
 use muon::{
-    api_client::TachyonOpsClient, CiMetadata, DefaultTestRunner,
-    TestConfigManager, TestResult, TestRunReport, TestRunner, TestScenario,
+    api_client::TachyonOpsClient,
+    server::{self, state::AppState},
+    CiMetadata, DefaultTestRunner, TestConfigManager, TestResult,
+    TestRunReport, TestRunner, TestScenario,
 };
 use std::fs::{self, File};
 use std::io::Write;
@@ -15,49 +17,79 @@ use std::time::Instant;
 use tracing::{debug, error, info};
 use tracing_subscriber::{fmt, EnvFilter};
 
-/// Tachyon Scenario Runner - YAML-based API test execution tool.
+/// Tachyon Scenario Runner - YAML-based API test execution
+/// tool.
 #[derive(Parser, Debug)]
 #[command(name = "muon", version, about)]
 struct Cli {
+    #[command(subcommand)]
+    command: Option<Command>,
+
+    // ── Flat args for backward-compatible `muon [run]`
+    // mode ──
     /// Test file or directory path.
-    #[arg(short = 'p', long = "path")]
+    #[arg(short = 'p', long = "path", global = true)]
     test_path: Option<String>,
 
     /// Filter tests by name (partial match).
-    #[arg(short = 'f', long = "filter")]
+    #[arg(short = 'f', long = "filter", global = true)]
     test_filter: Option<String>,
 
     /// Enable verbose logging.
-    #[arg(short = 'v', long = "verbose")]
+    #[arg(short = 'v', long = "verbose", global = true)]
     verbose: bool,
 
     /// Timeout in seconds per test step.
-    #[arg(short = 't', long = "timeout")]
+    #[arg(short = 't', long = "timeout", global = true)]
     timeout: Option<u64>,
 
     /// Directory to save test report files.
-    #[arg(short = 'r', long = "report-dir")]
+    #[arg(short = 'r', long = "report-dir", global = true)]
     report_dir: Option<String>,
 
     /// Report output format.
-    #[arg(long = "report-format", default_value = "json")]
+    #[arg(long = "report-format", default_value = "json", global = true)]
     report_format: ReportFormat,
 
     /// Base URL override for all scenarios.
-    #[arg(short = 'b', long = "base-url")]
+    #[arg(short = 'b', long = "base-url", global = true)]
     base_url: Option<String>,
 
     /// Tachyon Ops API URL for submitting test results.
-    #[arg(long = "api-url", env = "TACHYON_OPS_API_URL")]
+    #[arg(long = "api-url", env = "TACHYON_OPS_API_URL", global = true)]
     api_url: Option<String>,
 
     /// API key for Tachyon Ops API authentication.
-    #[arg(long = "api-key", env = "TACHYON_OPS_API_KEY")]
+    #[arg(long = "api-key", env = "TACHYON_OPS_API_KEY", global = true)]
     api_key: Option<String>,
 
-    /// Operator ID for multi-tenancy (x-operator-id header).
-    #[arg(long = "operator-id", env = "TACHYON_OPS_OPERATOR_ID")]
+    /// Operator ID for multi-tenancy (x-operator-id
+    /// header).
+    #[arg(
+        long = "operator-id",
+        env = "TACHYON_OPS_OPERATOR_ID",
+        global = true
+    )]
     operator_id: Option<String>,
+}
+
+#[derive(Subcommand, Debug)]
+enum Command {
+    /// Run test scenarios (default when no subcommand is
+    /// given).
+    Run,
+    /// Start a local web server for the muon UI.
+    Serve {
+        /// Port to listen on.
+        #[arg(long, default_value = "9800")]
+        port: u16,
+        /// Scenario directory path.
+        #[arg(long = "path")]
+        scenario_path: Option<String>,
+        /// Open browser automatically.
+        #[arg(long)]
+        open: bool,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, ValueEnum)]
@@ -239,7 +271,8 @@ fn prepare_config(
         } else if path.is_dir() {
             let dir_scenarios =
                 config.load_scenarios_from_dir(&path).context(format!(
-                    "Failed to load scenarios from directory: {}",
+                    "Failed to load scenarios from \
+                     directory: {}",
                     path.display()
                 ))?;
             scenarios.extend(dir_scenarios);
@@ -267,7 +300,8 @@ fn detect_ci_metadata() -> Option<CiMetadata> {
         let commit_sha = std::env::var("GITHUB_SHA").unwrap_or_default();
         let pr_number = std::env::var("PR_NUMBER")
             .or_else(|_| {
-                // Try to extract from GITHUB_REF (refs/pull/123/merge)
+                // Try to extract from GITHUB_REF
+                // (refs/pull/123/merge)
                 std::env::var("GITHUB_REF")
                     .map(|r| r.split('/').nth(2).unwrap_or("").to_string())
             })
@@ -275,7 +309,10 @@ fn detect_ci_metadata() -> Option<CiMetadata> {
             .and_then(|n| n.parse::<u64>().ok());
         let run_id = std::env::var("GITHUB_RUN_ID").ok();
         let run_url = run_id.as_ref().map(|id| {
-            format!("https://github.com/{repository}/actions/runs/{id}")
+            format!(
+                "https://github.com/{repository}\
+                 /actions/runs/{id}"
+            )
         });
 
         return Some(CiMetadata {
@@ -357,7 +394,8 @@ async fn run_all_tests(
             }
             Err(e) => {
                 error!(
-                    "\x1b[31mTest execution error: {} - {}\x1b[0m",
+                    "\x1b[31mTest execution error: \
+                     {} - {}\x1b[0m",
                     scenario.name, e
                 );
                 all_success = false;
@@ -368,7 +406,9 @@ async fn run_all_tests(
 
     let total_duration = total_start.elapsed().as_millis();
     info!(
-        "Summary:\n  Total: {}\n  \x1b[32mPassed: {}\x1b[0m\n  \x1b[31mFailed: {}\x1b[0m\n  Duration: {} ms",
+        "Summary:\n  Total: {}\n  \x1b[32mPassed: \
+         {}\x1b[0m\n  \x1b[31mFailed: {}\x1b[0m\n  \
+         Duration: {} ms",
         passed + failed,
         passed,
         failed,
@@ -378,59 +418,165 @@ async fn run_all_tests(
     Ok((all_success, results))
 }
 
+/// Resolve the scenario directory for serve mode.
+fn resolve_scenario_dir(path: Option<String>) -> PathBuf {
+    if let Some(p) = path {
+        return PathBuf::from(p);
+    }
+
+    let candidates =
+        ["tests/scenarios", "testcase/scenarios", "test/scenarios"];
+    for c in &candidates {
+        let p = PathBuf::from(c);
+        if p.exists() && p.is_dir() {
+            return p;
+        }
+    }
+
+    PathBuf::from(".")
+}
+
+/// Start the muon web server in serve mode.
+async fn start_serve(
+    port: u16,
+    scenario_path: Option<String>,
+    open: bool,
+) -> Result<()> {
+    let scenario_dir = resolve_scenario_dir(scenario_path);
+    if !scenario_dir.exists() {
+        return Err(anyhow!(
+            "Scenario directory does not exist: {}",
+            scenario_dir.display()
+        ));
+    }
+
+    let state = AppState::new(scenario_dir);
+
+    // Load initial scenarios
+    state.reload_scenarios().await;
+
+    {
+        let scenarios = state.scenarios.read().await;
+        info!("Loaded {} scenario(s)", scenarios.len());
+    }
+
+    // Start file watcher
+    let _watcher = server::watcher::start_watcher(state.clone()).await?;
+
+    let router = server::create_router(state);
+
+    let url = format!("http://127.0.0.1:{port}");
+    info!("muon server running at {}", url);
+
+    if open {
+        let _ = open_browser(&url);
+    }
+
+    let listener =
+        tokio::net::TcpListener::bind(format!("127.0.0.1:{port}")).await?;
+    axum::serve(listener, router).await?;
+
+    Ok(())
+}
+
+/// Attempt to open a URL in the default browser.
+fn open_browser(url: &str) -> Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open").arg(url).spawn()?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open").arg(url).spawn()?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", url])
+            .spawn()?;
+    }
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Cli::parse();
 
     init_tracing(args.verbose);
 
-    let (_, scenarios) = prepare_config(args.test_path)?;
-
-    let report_dir = args.report_dir.map(PathBuf::from);
-
-    let total_start = Instant::now();
-
-    let (success, results) = run_all_tests(
-        scenarios,
-        args.test_filter,
-        args.timeout,
-        args.base_url,
-        args.verbose,
-        report_dir.as_deref(),
-        args.report_format,
-    )
-    .await?;
-
-    // Submit report to Tachyon Ops API if configured
-    if let (Some(api_url), Some(api_key)) = (args.api_url, args.api_key) {
-        let report = TestRunReport {
-            scenarios: results,
-            total_duration_ms: total_start.elapsed().as_millis() as u64,
-            timestamp: Utc::now().to_rfc3339(),
-            ci: detect_ci_metadata(),
-        };
-
-        info!("Submitting test report to Tachyon Ops API...");
-        let mut client = TachyonOpsClient::new(api_url, api_key);
-        if let Some(operator_id) = args.operator_id {
-            client = client.with_operator_id(operator_id);
+    match args.command {
+        Some(Command::Serve {
+            port,
+            scenario_path,
+            open,
+        }) => {
+            start_serve(port, scenario_path, open).await?;
         }
-        match client.submit_report(&report).await {
-            Ok(resp) => {
-                info!("Report submitted (run_id: {})", resp.run_id);
-                if let Some(url) = resp.dashboard_url {
-                    info!("Dashboard: {}", url);
+        Some(Command::Run) | None => {
+            // Default: run mode (backward compatible)
+            let (_, scenarios) = prepare_config(args.test_path)?;
+
+            let report_dir = args.report_dir.map(PathBuf::from);
+
+            let total_start = Instant::now();
+
+            let (success, results) = run_all_tests(
+                scenarios,
+                args.test_filter,
+                args.timeout,
+                args.base_url,
+                args.verbose,
+                report_dir.as_deref(),
+                args.report_format,
+            )
+            .await?;
+
+            // Submit report to Tachyon Ops API if
+            // configured
+            if let (Some(api_url), Some(api_key)) =
+                (args.api_url, args.api_key)
+            {
+                let report = TestRunReport {
+                    scenarios: results,
+                    total_duration_ms: total_start.elapsed().as_millis()
+                        as u64,
+                    timestamp: Utc::now().to_rfc3339(),
+                    ci: detect_ci_metadata(),
+                };
+
+                info!(
+                    "Submitting test report to Tachyon \
+                     Ops API..."
+                );
+                let mut client = TachyonOpsClient::new(api_url, api_key);
+                if let Some(operator_id) = args.operator_id {
+                    client = client.with_operator_id(operator_id);
+                }
+                match client.submit_report(&report).await {
+                    Ok(resp) => {
+                        info!(
+                            "Report submitted (run_id: \
+                             {})",
+                            resp.run_id
+                        );
+                        if let Some(url) = resp.dashboard_url {
+                            info!("Dashboard: {}", url);
+                        }
+                    }
+                    Err(e) => {
+                        error!(
+                            "Failed to submit report: \
+                             {}",
+                            e
+                        );
+                    }
                 }
             }
-            Err(e) => {
-                error!("Failed to submit report: {}", e);
-                // Don't fail the process for report submission errors
+
+            if !success {
+                exit(1);
             }
         }
-    }
-
-    if !success {
-        exit(1);
     }
 
     Ok(())
