@@ -1,0 +1,31 @@
+name: Agent Tool Jobs API
+description: Create and manage async tool jobs
+tags:
+  - tachyon
+  - agent
+  - tool-jobs
+
+config:
+  base_url: http://localhost:50154
+  headers:
+    Authorization: Bearer dummy-token
+    x-operator-id: tn_01hjryxysgey07h5jz5wagqj0m
+    Content-Type: application/json
+  timeout: 30
+
+steps:
+  - id: list_providers
+    name: List available tool job providers
+    request:
+      method: GET
+      url: /v1/agent/tool-jobs/providers
+    expect:
+      status: 200
+
+  - id: list_jobs
+    name: List existing tool jobs
+    request:
+      method: GET
+      url: /v1/agent/tool-jobs
+    expect:
+      status: 200

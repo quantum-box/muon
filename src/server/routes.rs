@@ -10,8 +10,9 @@ use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use chrono::Utc;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::error;
@@ -21,14 +22,14 @@ pub fn api_routes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/scenarios", get(list_scenarios).post(create_scenario))
         .route(
-            "/scenarios/{id}",
+            "/scenarios/:id",
             get(get_scenario)
                 .put(update_scenario)
                 .delete(delete_scenario),
         )
-        .route("/scenarios/{id}/run", post(run_scenario))
+        .route("/scenarios/:id/run", post(run_scenario))
         .route("/runs", get(list_runs))
-        .route("/runs/{id}", get(get_run))
+        .route("/runs/:id", get(get_run))
 }
 
 /// `GET /api/scenarios` — List all loaded scenarios.
@@ -37,6 +38,18 @@ async fn list_scenarios(
 ) -> impl IntoResponse {
     let scenarios = state.scenarios.read().await;
     Json(scenarios.clone())
+}
+
+/// Response envelope matching the frontend `ScenarioDetail`
+/// type.
+#[derive(Serialize)]
+struct ScenarioDetailResponse {
+    id: String,
+    name: String,
+    description: Option<String>,
+    tags: Vec<String>,
+    file_path: PathBuf,
+    scenario: TestScenario,
 }
 
 /// `GET /api/scenarios/:id` — Get full scenario detail.
@@ -57,7 +70,16 @@ async fn get_scenario(
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-    Ok(Json(scenario))
+    let detail = ScenarioDetailResponse {
+        id: info.id.clone(),
+        name: info.name.clone(),
+        description: info.description.clone(),
+        tags: info.tags.clone(),
+        file_path: info.file_path.clone(),
+        scenario,
+    };
+
+    Ok(Json(detail))
 }
 
 /// `POST /api/scenarios/:id/run` — Execute a scenario and

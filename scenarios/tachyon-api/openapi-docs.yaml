@@ -1,0 +1,24 @@
+name: OpenAPI Documentation Endpoints
+description: Verify API documentation endpoints are accessible
+tags:
+  - tachyon
+  - docs
+
+config:
+  base_url: http://localhost:50154
+  timeout: 10
+
+steps:
+  - id: openapi_json
+    name: Fetch OpenAPI JSON spec
+    request:
+      method: GET
+      url: /v1/api-docs/openapi.json
+    expect:
+      status: 200
+      json:
+        openapi: "3.1.0"
+    test: |
+      current.res.status == 200
+      && has(current.res.body.info)
+      && has(current.res.body.paths)

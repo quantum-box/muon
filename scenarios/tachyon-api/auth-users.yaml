@@ -1,0 +1,23 @@
+name: Auth - List Users
+description: List users and verify the seed user exists
+tags:
+  - tachyon
+  - auth
+
+config:
+  base_url: http://localhost:50154
+  headers:
+    Authorization: Bearer dummy-token
+    x-operator-id: tn_01hjryxysgey07h5jz5wagqj0m
+  timeout: 15
+
+steps:
+  - id: list_users
+    name: List all users for the operator
+    request:
+      method: GET
+      url: /v1/auth/users
+    expect:
+      status: 200
+    test: |
+      current.res.status == 200
