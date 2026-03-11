@@ -23,9 +23,11 @@ import {
   tauriCreateProject,
   isTauri,
 } from '../lib/tauri-api'
+import { useProject } from '../contexts/project-context'
 
 export function ProjectsPage() {
   const navigate = useNavigate()
+  const { setProjectPath } = useProject()
   const [projects, setProjects] = useState<Project[]>(getProjects)
   const [search, setSearch] = useState('')
   const [menuOpen, setMenuOpen] = useState<string | null>(null)
@@ -56,6 +58,7 @@ export function ProjectsPage() {
         pinned: false,
       })
       setProjects(updated)
+      setProjectPath(path)
       navigate('/scenarios')
     }
   }
@@ -73,6 +76,7 @@ export function ProjectsPage() {
         pinned: false,
       })
       setProjects(updated)
+      setProjectPath(info.path)
       navigate('/scenarios')
     }
   }
@@ -89,7 +93,8 @@ export function ProjectsPage() {
     setMenuOpen(null)
   }
 
-  function handleSelectProject(_project: Project) {
+  function handleSelectProject(project: Project) {
+    setProjectPath(project.path)
     navigate('/scenarios')
   }
 

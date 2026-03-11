@@ -40,6 +40,7 @@ fn main() {
             commands::list_scenarios,
             commands::get_scenario,
             commands::run_scenario,
+            commands::run_multiple_scenarios,
             commands::create_scenario,
             commands::update_scenario,
             commands::delete_scenario,
@@ -51,6 +52,8 @@ fn main() {
             commands::import_curl,
             commands::import_openapi,
             commands::get_run_history,
+            commands::open_project,
+            commands::create_project,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Muon desktop app");

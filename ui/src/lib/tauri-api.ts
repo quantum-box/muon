@@ -80,6 +80,30 @@ export async function openProjectDialog(): Promise<string | null> {
   return typeof selected === 'string' ? selected : null
 }
 
+// --- Tauri IPC commands: Scenario operations ---
+
+import type { ScenarioSummary, ScenarioDetail } from './types'
+
+export async function tauriListScenarios(path: string): Promise<ScenarioSummary[]> {
+  const invoke = await getInvoke()
+  return invoke('list_scenarios', { path })
+}
+
+export async function tauriGetScenario(path: string, id: string): Promise<ScenarioDetail> {
+  const invoke = await getInvoke()
+  return invoke('get_scenario', { path, id })
+}
+
+export async function tauriRunScenario(path: string, id: string): Promise<void> {
+  const invoke = await getInvoke()
+  return invoke('run_scenario', { path, id })
+}
+
+export async function tauriRunMultipleScenarios(path: string, ids: string[]): Promise<void> {
+  const invoke = await getInvoke()
+  return invoke('run_multiple_scenarios', { path, ids })
+}
+
 // --- Tauri IPC commands (with browser fallback) ---
 
 export async function tauriImportPostman(

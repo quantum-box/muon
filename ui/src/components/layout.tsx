@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { isTauri, getSettings, saveSettings } from '../lib/tauri-api'
+import { useProject } from '../contexts/project-context'
 import { useGlobalShortcuts } from '../hooks/use-keyboard-shortcuts'
 
 const navItems = [
@@ -112,34 +113,60 @@ export function Layout({ children }: { children: ReactNode }) {
 }
 
 function Header() {
+  const { projectPath, openDirectory } = useProject()
+  const projectName = projectPath?.split('/').pop() ?? null
+
   return (
     <header className="border-b border-slate-700/50 bg-slate-900/80 backdrop-blur-sm sticky top-0 z-50">
-      <div className="px-4 h-11 flex items-center">
-        <Link to="/" className="flex items-center gap-2 group">
-          <div className="w-6 h-6 rounded-md bg-violet-500/20 flex items-center justify-center group-hover:bg-violet-500/30 transition-colors">
-            <Zap className="w-3.5 h-3.5 text-violet-400" />
-          </div>
-          <span className="text-sm font-semibold tracking-tight">
-            <span className="text-violet-400">mu</span>
-            <span className="text-slate-300">on</span>
+      <div className="px-4 h-11 flex items-center justify-between">
+        <div className="flex items-center">
+          <Link to="/" className="flex items-center gap-2 group">
+            <div className="w-6 h-6 rounded-md bg-violet-500/20 flex items-center justify-center group-hover:bg-violet-500/30 transition-colors">
+              <Zap className="w-3.5 h-3.5 text-violet-400" />
+            </div>
+            <span className="text-sm font-semibold tracking-tight">
+              <span className="text-violet-400">mu</span>
+              <span className="text-slate-300">on</span>
+            </span>
+          </Link>
+          <span className="ml-2 text-[10px] text-slate-600 font-mono">
+            API scenario runner
           </span>
-        </Link>
-        <span className="ml-2 text-[10px] text-slate-600 font-mono">
-          API scenario runner
-        </span>
+        </div>
+
+        {/* Project selector */}
+        <button
+          onClick={openDirectory}
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors"
+          title={projectPath ?? 'Open project folder'}
+        >
+          <FolderOpen className="w-3.5 h-3.5" />
+          <span className="max-w-[200px] truncate">
+            {projectName ?? 'Open Project'}
+          </span>
+        </button>
       </div>
     </header>
   )
 }
 
 function StatusBar() {
+  const { projectPath } = useProject()
+
   return (
     <div className="h-6 border-t border-slate-700/50 bg-slate-900/80 flex items-center px-3 gap-4 text-[10px] text-slate-600 font-mono">
       <div className="flex items-center gap-1.5">
         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
         {isTauri() ? 'Desktop' : 'Web'}
       </div>
-      <div className="flex-1 truncate">muon v0.1.0</div>
+      {projectPath && (
+        <div className="flex items-center gap-1.5 truncate" title={projectPath}>
+          <FolderOpen className="w-3 h-3 flex-shrink-0" />
+          <span className="truncate">{projectPath}</span>
+        </div>
+      )}
+      <div className="flex-1" />
+      <div>muon v0.3.1</div>
     </div>
   )
 }
