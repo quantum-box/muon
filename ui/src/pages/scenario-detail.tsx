@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { ArrowLeft, Play, Loader2, AlertCircle, RotateCcw } from 'lucide-react'
 import { useScenario } from '../hooks/use-scenarios'
+import { useProject } from '../contexts/project-context'
 import { useRun } from '../hooks/use-run'
 import { StepList } from '../components/step-list'
 import { StepViewer } from '../components/step-viewer'
@@ -12,7 +13,8 @@ import { cn, formatDuration } from '../lib/utils'
 export function ScenarioDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { data: scenario, isLoading, error } = useScenario(id!)
+  const { projectPath } = useProject()
+  const { data: scenario, isLoading, error } = useScenario(id!, projectPath)
   const { state: runState, execute, reset } = useRun()
   const [selectedStep, setSelectedStep] = useState(0)
 

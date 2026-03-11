@@ -2,11 +2,13 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, PlayCircle, Loader2, AlertCircle, FolderOpen } from 'lucide-react'
 import { useScenarios } from '../hooks/use-scenarios'
+import { useProject } from '../contexts/project-context'
 import { ScenarioCard } from '../components/scenario-card'
 import { cn } from '../lib/utils'
 
 export function ScenariosListPage() {
-  const { data: scenarios, isLoading, error } = useScenarios()
+  const { projectPath, openDirectory } = useProject()
+  const { data: scenarios, isLoading, error } = useScenarios(projectPath)
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
@@ -130,8 +132,23 @@ export function ScenariosListPage() {
       ) : (
         <div className="flex flex-col items-center justify-center py-16 gap-3 border border-dashed border-slate-700/50 rounded-lg">
           <FolderOpen className="w-10 h-10 text-slate-700" />
-          <p className="text-sm text-slate-400">No scenarios found</p>
-          <p className="text-xs text-slate-600">Place .yaml files in your scenarios directory</p>
+          <p className="text-sm text-slate-400">
+            {projectPath ? 'No scenarios found' : 'No project selected'}
+          </p>
+          <p className="text-xs text-slate-600">
+            {projectPath
+              ? 'Place .yaml files in your scenarios directory'
+              : 'Open a project folder to get started'}
+          </p>
+          {!projectPath && (
+            <button
+              onClick={openDirectory}
+              className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-violet-600 hover:bg-violet-500 text-white transition-colors"
+            >
+              <FolderOpen className="w-3.5 h-3.5" />
+              Open Project
+            </button>
+          )}
         </div>
       )}
     </div>

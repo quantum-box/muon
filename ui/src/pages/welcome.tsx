@@ -13,11 +13,13 @@ import {
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { type Project, getProjects, openProjectDialog, addProject, tauriOpenProject, isTauri } from '../lib/tauri-api'
+import { useProject } from '../contexts/project-context'
 import { ImportDialog } from '../components/import-dialog'
 import { SHORTCUT_REFERENCE } from '../hooks/use-keyboard-shortcuts'
 
 export function WelcomePage() {
   const navigate = useNavigate()
+  const { setProjectPath } = useProject()
   const [recentProjects] = useState<Project[]>(() => getProjects().slice(0, 5))
   const [importOpen, setImportOpen] = useState(false)
 
@@ -33,11 +35,17 @@ export function WelcomePage() {
           last_opened: new Date().toISOString(),
           pinned: false,
         })
+        setProjectPath(path)
         navigate('/scenarios')
       }
     } else {
       navigate('/projects')
     }
+  }
+
+  function handleSelectRecentProject(project: Project) {
+    setProjectPath(project.path)
+    navigate('/scenarios')
   }
 
   const quickActions = [
@@ -131,7 +139,7 @@ export function WelcomePage() {
               {recentProjects.map((project) => (
                 <button
                   key={project.path}
-                  onClick={() => navigate('/scenarios')}
+                  onClick={() => handleSelectRecentProject(project)}
                   className="w-full flex items-center justify-between p-2.5 rounded-md hover:bg-slate-800/50 transition-colors text-left group"
                 >
                   <div className="flex items-center gap-3 min-w-0">

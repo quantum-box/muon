@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Instant;
 use tauri::{Emitter, State, Window};
 use tokio::sync::mpsc;
 
@@ -228,6 +229,141 @@ pub async fn run_scenario(
     Ok(())
 }
 
+// ── Batch event types ────────────────────────────────
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BatchStarted {
+    pub total: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BatchScenarioStarted {
+    pub index: usize,
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BatchScenarioCompleted {
+    pub index: usize,
+    pub id: String,
+    pub success: bool,
+    pub duration_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BatchCompleted {
+    pub total: usize,
+    pub passed: usize,
+    pub failed: usize,
+    pub duration_ms: u64,
+}
+
+#[tauri::command]
+pub async fn run_multiple_scenarios(
+    path: String,
+    ids: Vec<String>,
+    db: State<'_, Arc<HistoryDb>>,
+    window: Window,
+) -> Result<(), String> {
+    let total = ids.len();
+    let batch_start = Instant::now();
+
+    let _ = window.emit(
+        "batch-started",
+        &BatchStarted { total },
+    );
+
+    let mut passed: usize = 0;
+    let mut failed: usize = 0;
+
+    for (index, id) in ids.iter().enumerate() {
+        let file_path = find_scenario_path(&path, id)?;
+        let mgr = TestConfigManager::new();
+        let scenario = mgr
+            .load_scenario(&file_path)
+            .map_err(|e| e.to_string())?;
+
+        let _ = window.emit(
+            "batch-scenario-started",
+            &BatchScenarioStarted {
+                index,
+                id: id.clone(),
+                name: scenario.name.clone(),
+            },
+        );
+
+        let scenario_start = Instant::now();
+        let runner = DefaultTestRunner::new();
+        let (tx, mut rx) = mpsc::channel::<RunEvent>(64);
+
+        // Forward step events to the Tauri window
+        let win = window.clone();
+        tokio::spawn(async move {
+            while let Some(event) = rx.recv().await {
+                let _ = win.emit("run-event", &event);
+            }
+        });
+
+        let run_result = runner
+            .run_with_events(&scenario, tx)
+            .await;
+
+        let scenario_duration =
+            scenario_start.elapsed().as_millis() as u64;
+
+        let success = match &run_result {
+            Ok(result) => {
+                // Persist to history DB
+                let steps_json =
+                    serde_json::to_string(&result.steps)
+                        .unwrap_or_default();
+                let _ = db.save_run(
+                    &result.name,
+                    &file_path.to_string_lossy(),
+                    result.success,
+                    result.error.as_deref(),
+                    &steps_json,
+                    result.duration_ms,
+                );
+                result.success
+            }
+            Err(_) => false,
+        };
+
+        if success {
+            passed += 1;
+        } else {
+            failed += 1;
+        }
+
+        let _ = window.emit(
+            "batch-scenario-completed",
+            &BatchScenarioCompleted {
+                index,
+                id: id.clone(),
+                success,
+                duration_ms: scenario_duration,
+            },
+        );
+    }
+
+    let batch_duration =
+        batch_start.elapsed().as_millis() as u64;
+
+    let _ = window.emit(
+        "batch-completed",
+        &BatchCompleted {
+            total,
+            passed,
+            failed,
+            duration_ms: batch_duration,
+        },
+    );
+
+    Ok(())
+}
+
 #[tauri::command]
 pub fn create_scenario(
     path: String,
@@ -399,6 +535,72 @@ pub fn get_run_history(
 ) -> Result<Vec<RunHistoryEntry>, String> {
     let limit = limit.unwrap_or(50);
     db.list_runs(limit, 0).map_err(|e| e.to_string())
+}
+
+// ── Project management ───────────────────────────────
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ProjectInfo {
+    pub name: String,
+    pub path: String,
+    pub scenario_count: usize,
+}
+
+#[tauri::command]
+pub fn open_project(
+    path: String,
+) -> Result<ProjectInfo, String> {
+    let dir = PathBuf::from(&path);
+    if !dir.is_dir() {
+        return Err(format!("Not a directory: {path}"));
+    }
+    let name = dir
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("Project")
+        .to_string();
+
+    // Count scenario files
+    let scenario_count = std::fs::read_dir(&dir)
+        .map(|entries| {
+            entries
+                .flatten()
+                .filter(|e| {
+                    e.path().is_file()
+                        && is_scenario_file(&e.path())
+                })
+                .count()
+        })
+        .unwrap_or(0);
+
+    Ok(ProjectInfo {
+        name,
+        path,
+        scenario_count,
+    })
+}
+
+#[tauri::command]
+pub fn create_project(
+    path: String,
+) -> Result<ProjectInfo, String> {
+    let dir = PathBuf::from(&path);
+
+    // Create the project directory and .muon/environments
+    std::fs::create_dir_all(dir.join(".muon").join("environments"))
+        .map_err(|e| format!("Failed to create project: {e}"))?;
+
+    let name = dir
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("Project")
+        .to_string();
+
+    Ok(ProjectInfo {
+        name,
+        path,
+        scenario_count: 0,
+    })
 }
 
 /// Convert a scenario name to a safe YAML filename.
