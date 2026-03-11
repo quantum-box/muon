@@ -876,6 +876,24 @@ impl DefaultTestRunner {
             }
         }
 
+        // Not contains
+        for text in &step.expect.not_contains {
+            let expanded_text = self.expand_variables(text, vars);
+            if body.contains(&expanded_text) {
+                error!(
+                    "レスポンスボディに含まれてはいけないテキスト \
+                     '{expanded_text}' が含まれています \
+                     (ステップ: {})",
+                    step.name
+                );
+                step_success = false;
+                step_error = Some(format!(
+                    "レスポンスボディに含まれてはいけないテキスト \
+                     '{expanded_text}' が含まれています"
+                ));
+            }
+        }
+
         // SSE validation
         if let (Some(sse_expect), Some(ref events)) =
             (&step.expect.sse, &sse_events)

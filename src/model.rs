@@ -161,6 +161,9 @@ pub struct ResponseExpectation {
     /// TODO: add English documentation
     #[serde(default)]
     pub contains: Vec<String>,
+    /// Assert that response body does NOT contain specified substrings.
+    #[serde(default)]
+    pub not_contains: Vec<String>,
     /// Full JSON equality check for REST responses.
     #[serde(default)]
     pub json_eq: Option<serde_json::Value>,

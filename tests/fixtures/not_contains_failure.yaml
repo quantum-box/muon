@@ -1,0 +1,15 @@
+name: Not contains failure scenario
+description: Expect not_contains to fail when substring is present
+
+config:
+  base_url: __BASE_URL__
+
+steps:
+  - name: 存在するキーワードが含まれないことを検証する
+    request:
+      method: GET
+      url: /text
+    expect:
+      status: 200
+      not_contains:
+        - runner world
