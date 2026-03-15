@@ -83,6 +83,23 @@ pub fn validate_contains(body: &str, texts: &[String]) -> Vec<String> {
     errors
 }
 
+/// Validate that the response body does NOT contain any of the
+/// given substrings.
+pub fn validate_not_contains(body: &str, texts: &[String]) -> Vec<String> {
+    let mut errors = Vec::new();
+
+    for text in texts {
+        if body.contains(text) {
+            errors.push(format!(
+                "レスポンスボディに含まれてはいけないテキスト \
+                 '{text}' が含まれています"
+            ));
+        }
+    }
+
+    errors
+}
+
 /// Check whether the given dot-separated path should be ignored.
 ///
 /// Each segment of `path` is compared against each segment of each

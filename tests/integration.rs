@@ -287,6 +287,27 @@ async fn contains_succeeds_for_substring() {
 }
 
 #[tokio::test]
+async fn not_contains_succeeds_when_substring_absent() {
+    let server = TestServer::spawn().await;
+    let scenario =
+        load_scenario("not_contains_success.yaml", &server.base_url);
+    let runner = DefaultTestRunner::new();
+
+    let result = runner
+        .run(&scenario)
+        .await
+        .expect("runner returned error for not_contains success");
+
+    assert!(
+        result.success,
+        "scenario should succeed: {:?}",
+        result.error
+    );
+
+    server.shutdown().await;
+}
+
+#[tokio::test]
 async fn headers_succeed_when_values_match() {
     let server = TestServer::spawn().await;
     let scenario = load_scenario("headers_success.yaml", &server.base_url);
@@ -414,6 +435,27 @@ async fn contains_fails_when_substring_absent() {
 
     assert!(!result.success, "scenario should fail");
     assert_error_contains(&result, "レスポンスボディに期待するテキスト");
+
+    server.shutdown().await;
+}
+
+#[tokio::test]
+async fn not_contains_fails_when_substring_present() {
+    let server = TestServer::spawn().await;
+    let scenario =
+        load_scenario("not_contains_failure.yaml", &server.base_url);
+    let runner = DefaultTestRunner::new();
+
+    let result = runner
+        .run(&scenario)
+        .await
+        .expect("runner returned error for not_contains failure");
+
+    assert!(!result.success, "scenario should fail");
+    assert_error_contains(
+        &result,
+        "レスポンスボディに含まれてはいけないテキスト",
+    );
 
     server.shutdown().await;
 }

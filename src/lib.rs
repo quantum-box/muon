@@ -61,6 +61,7 @@ mod tests {
                     json_lengths: HashMap::new(),
                     schema: None,
                     contains: vec![],
+                    not_contains: vec![],
                     json_eq: None,
                     json_ignore_fields: vec![],
                     sse: None,

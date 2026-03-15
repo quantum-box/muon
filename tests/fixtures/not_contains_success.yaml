@@ -1,0 +1,16 @@
+name: Not contains success scenario
+description: Verify not_contains passes when substring is absent
+
+config:
+  base_url: __BASE_URL__
+
+steps:
+  - name: レスポンス本文にキーワードが含まれないことを検証
+    request:
+      method: GET
+      url: /text
+    expect:
+      status: 200
+      not_contains:
+        - nonexistent keyword
+        - "<attempt_completion>"
