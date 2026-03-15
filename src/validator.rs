@@ -85,10 +85,7 @@ pub fn validate_contains(body: &str, texts: &[String]) -> Vec<String> {
 
 /// Validate that the response body does NOT contain any of the
 /// given substrings.
-pub fn validate_not_contains(
-    body: &str,
-    texts: &[String],
-) -> Vec<String> {
+pub fn validate_not_contains(body: &str, texts: &[String]) -> Vec<String> {
     let mut errors = Vec::new();
 
     for text in texts {
