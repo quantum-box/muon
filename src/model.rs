@@ -187,11 +187,27 @@ pub struct SseExpectation {
     /// Ordered event assertions with data validation
     #[serde(default)]
     pub events: Vec<SseEventExpectation>,
-    /// Exact event type sequence. Every event in the stream must
-    /// match this sequence in order, with no extra events allowed.
-    /// Example: `["attempt_completion", "usage", "done"]`
+    /// Event type sequence with consecutive deduplication.
+    /// Consecutive same-type events are collapsed before comparison.
+    /// Example: `["say", "done"]` matches `[say, say, say, done]`
     #[serde(default)]
     pub event_sequence: Vec<String>,
+    /// Exact event type sequence without deduplication.
+    /// Every event must match one-to-one in order and count.
+    /// Example: `["say", "say", "usage", "done"]`
+    #[serde(default)]
+    pub exact_event_sequence: Vec<String>,
+    /// Assert the total number of SSE events in the stream.
+    #[serde(default)]
+    pub event_count: Option<usize>,
+    /// Assert the count of each event type.
+    /// Example: `{ "say": 3, "done": 1, "usage": 1 }`
+    #[serde(default)]
+    pub event_count_by_type: HashMap<String, usize>,
+    /// Assert that the last event in the stream is this type.
+    /// Example: `"done"`
+    #[serde(default)]
+    pub ends_with: Option<String>,
 }
 
 /// A single SSE event assertion
