@@ -1,6 +1,12 @@
 use std::{fs, path::PathBuf};
 
-use axum::{http::StatusCode, routing::get, Json, Router};
+use axum::{
+    http::StatusCode,
+    response::sse::{Event, Sse},
+    routing::get,
+    Json, Router,
+};
+use futures::stream;
 use muon::{DefaultTestRunner, TestRunner, TestScenario};
 use serde_json::json;
 use tokio::task::JoinHandle;
@@ -114,6 +120,50 @@ impl TestServer {
                             }
                         })),
                     )
+                }),
+            )
+            .route(
+                "/sse/completion",
+                get(|| async move {
+                    let events = vec![
+                        Event::default()
+                            .event("attempt_completion")
+                            .data(r#"{"type":"attempt_completion","result":"Task done.","command":null,"is_finished":true}"#),
+                        Event::default()
+                            .event("usage")
+                            .data(r#"{"type":"usage","prompt_tokens":100,"completion_tokens":50,"total_tokens":150}"#),
+                        Event::default()
+                            .event("done")
+                            .data(r#"{"type":"done"}"#),
+                    ];
+                    Sse::new(stream::iter(
+                        events.into_iter().map(Ok::<_, std::convert::Infallible>),
+                    ))
+                }),
+            )
+            .route(
+                "/sse/streaming",
+                get(|| async move {
+                    let events = vec![
+                        Event::default()
+                            .event("say")
+                            .data(r#"{"type":"say","index":0,"text":"Hello "}"#),
+                        Event::default()
+                            .event("say")
+                            .data(r#"{"type":"say","index":0,"text":"world"}"#),
+                        Event::default()
+                            .event("say")
+                            .data(r#"{"type":"say","index":0,"text":"!"}"#),
+                        Event::default()
+                            .event("usage")
+                            .data(r#"{"type":"usage","prompt_tokens":80,"completion_tokens":30,"total_tokens":110}"#),
+                        Event::default()
+                            .event("done")
+                            .data(r#"{"type":"done"}"#),
+                    ];
+                    Sse::new(stream::iter(
+                        events.into_iter().map(Ok::<_, std::convert::Infallible>),
+                    ))
                 }),
             );
 
@@ -633,6 +683,51 @@ async fn runn_runbook_basic_succeeds() {
         result.error
     );
     assert_eq!(result.steps.len(), 2);
+
+    server.shutdown().await;
+}
+
+// ── SSE validation tests ──────────────────────────────
+
+#[tokio::test]
+async fn sse_validation_succeeds() {
+    let server = TestServer::spawn().await;
+    let scenario = load_scenario(
+        "sse_validation_success.scenario.md",
+        &server.base_url,
+    );
+    let runner = DefaultTestRunner::new();
+
+    let result = runner
+        .run(&scenario)
+        .await
+        .expect("runner returned error for SSE validation");
+
+    assert!(
+        result.success,
+        "SSE validation scenario should succeed: {:?}",
+        result.error
+    );
+    assert_eq!(result.steps.len(), 2, "expected 2 steps from SSE scenario");
+
+    server.shutdown().await;
+}
+
+#[tokio::test]
+async fn sse_validation_failure_detected() {
+    let server = TestServer::spawn().await;
+    let scenario = load_scenario(
+        "sse_validation_failure.scenario.md",
+        &server.base_url,
+    );
+    let runner = DefaultTestRunner::new();
+
+    let result = runner
+        .run(&scenario)
+        .await
+        .expect("runner returned error for SSE validation failure");
+
+    assert!(!result.success, "SSE validation scenario should fail");
 
     server.shutdown().await;
 }

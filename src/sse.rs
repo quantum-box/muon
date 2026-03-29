@@ -147,6 +147,38 @@ pub fn validate_sse(
         }
     }
 
+    // Level 1.5: event_count — assert total number of events
+    if let Some(expected_count) = expect.event_count {
+        let actual_count = events.len();
+        if actual_count != expected_count {
+            errors.push(format!(
+                "SSE event_count mismatch — expected: {expected_count}, \
+                 actual: {actual_count}"
+            ));
+        }
+    }
+
+    // Level 1.5: event_count_by_type — assert per-type counts
+    if !expect.event_count_by_type.is_empty() {
+        let mut actual_counts: HashMap<&str, usize> = HashMap::new();
+        for event in events {
+            *actual_counts.entry(event.event_type.as_str()).or_insert(0) +=
+                1;
+        }
+        for (event_type, expected_count) in &expect.event_count_by_type {
+            let actual_count = actual_counts
+                .get(event_type.as_str())
+                .copied()
+                .unwrap_or(0);
+            if actual_count != *expected_count {
+                errors.push(format!(
+                    "SSE event_count_by_type '{event_type}' mismatch \
+                     — expected: {expected_count}, actual: {actual_count}"
+                ));
+            }
+        }
+    }
+
     // Level 1.5: event_sequence — match with consecutive dedup
     if !expect.event_sequence.is_empty() {
         let actual_raw: Vec<&str> =
@@ -168,6 +200,44 @@ pub fn validate_sse(
                 "SSE event_sequence mismatch — expected: {expected:?}, \
                  actual (deduped): {actual:?} (raw: {actual_raw:?})"
             ));
+        }
+    }
+
+    // Level 1.5: exact_event_sequence — match without dedup
+    if !expect.exact_event_sequence.is_empty() {
+        let actual: Vec<&str> =
+            events.iter().map(|e| e.event_type.as_str()).collect();
+        let expected: Vec<&str> = expect
+            .exact_event_sequence
+            .iter()
+            .map(|s| s.as_str())
+            .collect();
+        if actual != expected {
+            errors.push(format!(
+                "SSE exact_event_sequence mismatch — expected: \
+                 {expected:?}, actual: {actual:?}"
+            ));
+        }
+    }
+
+    // Level 1.5: ends_with — assert last event type
+    if let Some(ref expected_last) = expect.ends_with {
+        match events.last() {
+            Some(last_event) => {
+                if last_event.event_type != *expected_last {
+                    errors.push(format!(
+                        "SSE ends_with mismatch — expected last event: \
+                         '{expected_last}', actual: '{}'",
+                        last_event.event_type
+                    ));
+                }
+            }
+            None => {
+                errors.push(format!(
+                    "SSE ends_with: no events in stream, \
+                     expected '{expected_last}'"
+                ));
+            }
         }
     }
 
@@ -730,5 +800,208 @@ mod tests {
         let (errors, _) = validate_sse(&events, &expect, &identity);
         assert_eq!(errors.len(), 1);
         assert!(errors[0].contains("not found"));
+    }
+
+    // ── event_count tests ─────────────────────────────────
+
+    #[test]
+    fn test_validate_event_count_pass() {
+        let events = parse_sse_events(sample_sse_body());
+        let expect = SseExpectation {
+            event_count: Some(6),
+            ..Default::default()
+        };
+        let identity = |s: &str| s.to_string();
+        let (errors, _) = validate_sse(&events, &expect, &identity);
+        assert!(errors.is_empty(), "Errors: {errors:?}");
+    }
+
+    #[test]
+    fn test_validate_event_count_mismatch() {
+        let events = parse_sse_events(sample_sse_body());
+        let expect = SseExpectation {
+            event_count: Some(3),
+            ..Default::default()
+        };
+        let identity = |s: &str| s.to_string();
+        let (errors, _) = validate_sse(&events, &expect, &identity);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("event_count mismatch"));
+        assert!(errors[0].contains("expected: 3"));
+        assert!(errors[0].contains("actual: 6"));
+    }
+
+    // ── event_count_by_type tests ─────────────────────────
+
+    #[test]
+    fn test_validate_event_count_by_type_pass() {
+        let events = parse_sse_events(sample_sse_body());
+        let mut counts = HashMap::new();
+        counts.insert("say".to_string(), 1);
+        counts.insert("tool_call".to_string(), 1);
+        counts.insert("done".to_string(), 1);
+        let expect = SseExpectation {
+            event_count_by_type: counts,
+            ..Default::default()
+        };
+        let identity = |s: &str| s.to_string();
+        let (errors, _) = validate_sse(&events, &expect, &identity);
+        assert!(errors.is_empty(), "Errors: {errors:?}");
+    }
+
+    #[test]
+    fn test_validate_event_count_by_type_mismatch() {
+        let events = parse_sse_events(sample_sse_body());
+        let mut counts = HashMap::new();
+        counts.insert("say".to_string(), 3); // only 1 in stream
+        let expect = SseExpectation {
+            event_count_by_type: counts,
+            ..Default::default()
+        };
+        let identity = |s: &str| s.to_string();
+        let (errors, _) = validate_sse(&events, &expect, &identity);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("event_count_by_type 'say'"));
+        assert!(errors[0].contains("expected: 3"));
+        assert!(errors[0].contains("actual: 1"));
+    }
+
+    #[test]
+    fn test_validate_event_count_by_type_missing_type() {
+        let events = parse_sse_events(sample_sse_body());
+        let mut counts = HashMap::new();
+        counts.insert("error".to_string(), 1); // not in stream
+        let expect = SseExpectation {
+            event_count_by_type: counts,
+            ..Default::default()
+        };
+        let identity = |s: &str| s.to_string();
+        let (errors, _) = validate_sse(&events, &expect, &identity);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("actual: 0"));
+    }
+
+    // ── exact_event_sequence tests ────────────────────────
+
+    #[test]
+    fn test_validate_exact_event_sequence_pass() {
+        let events = parse_sse_events(sample_sse_body());
+        let expect = SseExpectation {
+            exact_event_sequence: vec![
+                "say".into(),
+                "tool_call".into(),
+                "tool_call_args".into(),
+                "tool_result".into(),
+                "usage".into(),
+                "done".into(),
+            ],
+            ..Default::default()
+        };
+        let identity = |s: &str| s.to_string();
+        let (errors, _) = validate_sse(&events, &expect, &identity);
+        assert!(errors.is_empty(), "Errors: {errors:?}");
+    }
+
+    #[test]
+    fn test_validate_exact_event_sequence_no_dedup() {
+        // Unlike event_sequence, exact_event_sequence does NOT dedup
+        let body = "\
+            event: say\ndata: {\"text\":\"H\"}\n\n\
+            event: say\ndata: {\"text\":\"i\"}\n\n\
+            event: done\ndata: {}\n\n";
+        let events = parse_sse_events(body);
+
+        // This should fail because exact requires [say, say, done]
+        let expect = SseExpectation {
+            exact_event_sequence: vec!["say".into(), "done".into()],
+            ..Default::default()
+        };
+        let identity = |s: &str| s.to_string();
+        let (errors, _) = validate_sse(&events, &expect, &identity);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("exact_event_sequence mismatch"));
+
+        // This should pass
+        let expect_exact = SseExpectation {
+            exact_event_sequence: vec![
+                "say".into(),
+                "say".into(),
+                "done".into(),
+            ],
+            ..Default::default()
+        };
+        let (errors, _) = validate_sse(&events, &expect_exact, &identity);
+        assert!(errors.is_empty(), "Errors: {errors:?}");
+    }
+
+    // ── ends_with tests ───────────────────────────────────
+
+    #[test]
+    fn test_validate_ends_with_pass() {
+        let events = parse_sse_events(sample_sse_body());
+        let expect = SseExpectation {
+            ends_with: Some("done".into()),
+            ..Default::default()
+        };
+        let identity = |s: &str| s.to_string();
+        let (errors, _) = validate_sse(&events, &expect, &identity);
+        assert!(errors.is_empty(), "Errors: {errors:?}");
+    }
+
+    #[test]
+    fn test_validate_ends_with_mismatch() {
+        let events = parse_sse_events(sample_sse_body());
+        let expect = SseExpectation {
+            ends_with: Some("usage".into()),
+            ..Default::default()
+        };
+        let identity = |s: &str| s.to_string();
+        let (errors, _) = validate_sse(&events, &expect, &identity);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("ends_with mismatch"));
+        assert!(errors[0].contains("expected last event: 'usage'"));
+        assert!(errors[0].contains("actual: 'done'"));
+    }
+
+    #[test]
+    fn test_validate_ends_with_empty_stream() {
+        let events: Vec<SseEvent> = vec![];
+        let expect = SseExpectation {
+            ends_with: Some("done".into()),
+            ..Default::default()
+        };
+        let identity = |s: &str| s.to_string();
+        let (errors, _) = validate_sse(&events, &expect, &identity);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("no events in stream"));
+    }
+
+    // ── combined validation test ──────────────────────────
+
+    #[test]
+    fn test_validate_combined_new_features() {
+        let events = parse_sse_events(sample_sse_body());
+        let mut counts = HashMap::new();
+        counts.insert("say".to_string(), 1);
+        counts.insert("done".to_string(), 1);
+        let expect = SseExpectation {
+            event_count: Some(6),
+            event_count_by_type: counts,
+            exact_event_sequence: vec![
+                "say".into(),
+                "tool_call".into(),
+                "tool_call_args".into(),
+                "tool_result".into(),
+                "usage".into(),
+                "done".into(),
+            ],
+            ends_with: Some("done".into()),
+            has_events: vec!["usage".into()],
+            has_no_events: vec!["error".into()],
+            ..Default::default()
+        };
+        let identity = |s: &str| s.to_string();
+        let (errors, _) = validate_sse(&events, &expect, &identity);
+        assert!(errors.is_empty(), "Errors: {errors:?}");
     }
 }
