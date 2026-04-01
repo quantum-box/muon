@@ -1,22 +1,34 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { CheckCircle2, XCircle, Copy, Check } from 'lucide-react'
 import { cn, statusColor, formatDuration, formatJson, highlightJson } from '../lib/utils'
+import { JsonTreeView } from './json-tree-view'
+import { SseStreamViewer } from './sse-stream-viewer'
 import type { StepResult, ResponseViewerTab } from '../lib/types'
 
 interface ResponseViewerProps {
   result: StepResult | null
+  isStreaming?: boolean
 }
 
-const TABS: { id: ResponseViewerTab; label: string }[] = [
-  { id: 'pretty', label: 'Pretty' },
-  { id: 'raw', label: 'Raw' },
-  { id: 'headers', label: 'Headers' },
-  { id: 'tests', label: 'Tests' },
-]
-
-export function ResponseViewer({ result }: ResponseViewerProps) {
+export function ResponseViewer({ result, isStreaming = false }: ResponseViewerProps) {
   const [activeTab, setActiveTab] = useState<ResponseViewerTab>('pretty')
   const [copied, setCopied] = useState(false)
+
+  const hasSseContent = useMemo(() => {
+    const body = result?.response.body ?? ''
+    return body.includes('event:') && body.includes('data:')
+  }, [result])
+
+  const tabs: { id: ResponseViewerTab; label: string; show: boolean }[] = [
+    { id: 'pretty', label: 'Pretty', show: true },
+    { id: 'tree', label: 'Tree', show: true },
+    { id: 'raw', label: 'Raw', show: true },
+    { id: 'headers', label: 'Headers', show: true },
+    { id: 'tests', label: 'Tests', show: true },
+    { id: 'sse', label: 'SSE', show: hasSseContent },
+  ]
+
+  const visibleTabs = tabs.filter(t => t.show)
 
   if (!result) {
     return (
@@ -30,6 +42,10 @@ export function ResponseViewer({ result }: ResponseViewerProps) {
   const bodyStr = result.response.body ?? ''
   const formattedBody = formatJson(bodyStr)
   const bodySize = new Blob([bodyStr]).size
+
+  const parsedJson = useMemo(() => {
+    try { return JSON.parse(bodyStr) } catch { return null }
+  }, [bodyStr])
 
   function handleCopy() {
     navigator.clipboard.writeText(formattedBody)
@@ -69,7 +85,7 @@ export function ResponseViewer({ result }: ResponseViewerProps) {
 
       {/* Tabs */}
       <div className="border-b border-slate-700/50 flex px-4 shrink-0">
-        {TABS.map((tab) => (
+        {visibleTabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
@@ -81,6 +97,9 @@ export function ResponseViewer({ result }: ResponseViewerProps) {
             )}
           >
             {tab.label}
+            {tab.id === 'sse' && isStreaming && (
+              <span className="ml-1 w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse-dot" />
+            )}
             {activeTab === tab.id && (
               <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-violet-500" />
             )}
@@ -89,12 +108,12 @@ export function ResponseViewer({ result }: ResponseViewerProps) {
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-auto p-4">
+      <div className="flex-1 overflow-auto">
         {activeTab === 'pretty' && (
-          <div className="relative">
+          <div className="relative p-4">
             <button
               onClick={handleCopy}
-              className="absolute top-2 right-2 p-1.5 rounded bg-slate-700/50 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors z-10"
+              className="absolute top-6 right-6 p-1.5 rounded bg-slate-700/50 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors z-10"
               title="Copy response"
             >
               {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
@@ -106,11 +125,24 @@ export function ResponseViewer({ result }: ResponseViewerProps) {
           </div>
         )}
 
+        {activeTab === 'tree' && (
+          <div className="p-4">
+            {parsedJson != null ? (
+              <JsonTreeView data={parsedJson} defaultExpanded={3} />
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 text-slate-600 gap-1">
+                <p className="text-sm">Not valid JSON</p>
+                <p className="text-xs">Tree view requires a valid JSON response body</p>
+              </div>
+            )}
+          </div>
+        )}
+
         {activeTab === 'raw' && (
-          <div className="relative">
+          <div className="relative p-4">
             <button
               onClick={handleCopy}
-              className="absolute top-2 right-2 p-1.5 rounded bg-slate-700/50 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors z-10"
+              className="absolute top-6 right-6 p-1.5 rounded bg-slate-700/50 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors z-10"
               title="Copy response"
             >
               {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
@@ -122,14 +154,24 @@ export function ResponseViewer({ result }: ResponseViewerProps) {
         )}
 
         {activeTab === 'headers' && (
-          <div>
+          <div className="p-4">
             {Object.keys(result.response.headers).length > 0 ? (
               <div className="bg-slate-900/50 border border-slate-700/50 rounded-md overflow-hidden">
                 <table className="w-full text-xs font-mono">
+                  <thead>
+                    <tr className="border-b border-slate-700/50">
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider w-1/3">
+                        Name
+                      </th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                        Value
+                      </th>
+                    </tr>
+                  </thead>
                   <tbody>
                     {Object.entries(result.response.headers).map(([k, v]) => (
-                      <tr key={k} className="border-b border-slate-800 last:border-0">
-                        <td className="px-3 py-2 text-violet-400 whitespace-nowrap font-medium w-1/3">
+                      <tr key={k} className="border-b border-slate-800 last:border-0 hover:bg-slate-800/30">
+                        <td className="px-3 py-2 text-violet-400 whitespace-nowrap font-medium">
                           {k}
                         </td>
                         <td className="px-3 py-2 text-slate-300 break-all">{v}</td>
@@ -145,7 +187,7 @@ export function ResponseViewer({ result }: ResponseViewerProps) {
         )}
 
         {activeTab === 'tests' && (
-          <div className="space-y-2">
+          <div className="p-4 space-y-2">
             {result.success ? (
               <div className="flex items-center gap-2 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-md">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -173,6 +215,10 @@ export function ResponseViewer({ result }: ResponseViewerProps) {
               </div>
             </div>
           </div>
+        )}
+
+        {activeTab === 'sse' && (
+          <SseStreamViewer body={bodyStr} isStreaming={isStreaming} />
         )}
       </div>
     </div>

@@ -6,6 +6,8 @@ import { useProject } from '../contexts/project-context'
 import { useRun } from '../hooks/use-run'
 import { StepList } from '../components/step-list'
 import { StepViewer } from '../components/step-viewer'
+import { ResponseViewer } from '../components/response-viewer'
+import { SplitPane } from '../components/split-pane'
 import { Timeline } from '../components/timeline'
 import { StatusBadge } from '../components/status-badge'
 import { cn, formatDuration } from '../lib/utils'
@@ -66,6 +68,8 @@ export function ScenarioDetailPage() {
   const isCompleted = runState.status === 'completed'
   const isError = runState.status === 'error'
   const selectedStepDef = steps[selectedStep]
+  const selectedResult = runState.stepResults[selectedStep] ?? null
+  const hasResult = selectedResult != null
 
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem)]">
@@ -154,20 +158,35 @@ export function ScenarioDetailPage() {
           />
         </div>
 
-        {/* Right content - Step detail */}
-        <div className="flex-1 overflow-hidden flex flex-col">
+        {/* Right content - Step detail + Response viewer split */}
+        <div className="flex-1 overflow-hidden">
           {selectedStepDef ? (
-            <div className="flex-1 overflow-hidden">
-              <div className="h-full">
+            hasResult ? (
+              <SplitPane direction="vertical" defaultSize={50} minSize={25} maxSize={75}>
+                <div className="h-full overflow-hidden">
+                  <StepViewer
+                    step={selectedStepDef}
+                    result={selectedResult}
+                    allSteps={steps}
+                    variables={scenario.scenario.vars}
+                    runtimeVars={runState.variables}
+                  />
+                </div>
+                <div className="h-full overflow-hidden">
+                  <ResponseViewer result={selectedResult} isStreaming={isRunning} />
+                </div>
+              </SplitPane>
+            ) : (
+              <div className="h-full overflow-hidden">
                 <StepViewer
                   step={selectedStepDef}
-                  result={runState.stepResults[selectedStep] ?? null}
+                  result={null}
                   allSteps={steps}
                   variables={scenario.scenario.vars}
                   runtimeVars={runState.variables}
                 />
               </div>
-            </div>
+            )
           ) : (
             <div className="flex items-center justify-center h-full text-sm text-slate-600">
               Select a step to view details
