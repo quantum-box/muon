@@ -248,7 +248,8 @@ export function RequestBuilderPage() {
 			if (!cfg.url.trim()) return
 			setLoading(true)
 			try {
-				const result = await sendHttpRequest(cfg)
+				const expandedCfg = expandConfigVariables(cfg, activeVariables)
+				const result = await sendHttpRequest(expandedCfg)
 				setResponse(result)
 				const newEntry: RequestHistoryEntry = {
 					id: crypto.randomUUID(),
