@@ -671,18 +671,19 @@ pub async fn send_http_request(
         .unwrap_or("")
         .to_string();
 
-    let headers: HashMap<String, String> = response
-        .headers()
-        .iter()
-        .map(|(k, v)| {
-            (
-                k.as_str().to_string(),
-                v.to_str()
-                    .unwrap_or("<binary>")
-                    .to_string(),
-            )
-        })
-        .collect();
+    let mut headers: HashMap<String, String> =
+        HashMap::new();
+    for (k, v) in response.headers().iter() {
+        let value =
+            v.to_str().unwrap_or("<binary>").to_string();
+        headers
+            .entry(k.as_str().to_string())
+            .and_modify(|existing| {
+                existing.push_str(", ");
+                existing.push_str(&value);
+            })
+            .or_insert(value);
+    }
 
     let body_bytes = response.bytes().await.map_err(|e| {
         format!("Failed to read response body: {e}")

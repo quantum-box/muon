@@ -30,6 +30,12 @@ export function ResponseViewer({ result, isStreaming = false }: ResponseViewerPr
 
   const visibleTabs = tabs.filter(t => t.show)
 
+  const bodyStr = result?.response.body ?? ''
+
+  const parsedJson = useMemo(() => {
+    try { return JSON.parse(bodyStr) } catch { return null }
+  }, [bodyStr])
+
   if (!result) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-slate-600 gap-2 p-8">
@@ -39,13 +45,8 @@ export function ResponseViewer({ result, isStreaming = false }: ResponseViewerPr
     )
   }
 
-  const bodyStr = result.response.body ?? ''
   const formattedBody = formatJson(bodyStr)
   const bodySize = new Blob([bodyStr]).size
-
-  const parsedJson = useMemo(() => {
-    try { return JSON.parse(bodyStr) } catch { return null }
-  }, [bodyStr])
 
   function handleCopy() {
     navigator.clipboard.writeText(formattedBody)
