@@ -662,7 +662,6 @@ pub async fn send_http_request(
         .send()
         .await
         .map_err(|e| format!("Request failed: {e}"))?;
-    let duration_ms = start.elapsed().as_millis() as u64;
 
     let status = response.status().as_u16();
     let status_text = response
@@ -688,6 +687,9 @@ pub async fn send_http_request(
     let body_bytes = response.bytes().await.map_err(|e| {
         format!("Failed to read response body: {e}")
     })?;
+    // Measure duration after body is fully read to include
+    // download time
+    let duration_ms = start.elapsed().as_millis() as u64;
     let size_bytes = body_bytes.len();
     let body =
         String::from_utf8_lossy(&body_bytes).to_string();
