@@ -603,6 +603,104 @@ pub fn create_project(
     })
 }
 
+// ── Ad-hoc HTTP Request ─────────────────────────────
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct HttpRequestPayload {
+    pub method: String,
+    pub url: String,
+    #[serde(default)]
+    pub headers: HashMap<String, String>,
+    pub body: Option<String>,
+    /// Timeout in seconds (default 30).
+    pub timeout_secs: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct HttpResponsePayload {
+    pub status: u16,
+    pub status_text: String,
+    pub headers: HashMap<String, String>,
+    pub body: String,
+    pub duration_ms: u64,
+    pub size_bytes: usize,
+}
+
+#[tauri::command]
+pub async fn send_http_request(
+    payload: HttpRequestPayload,
+) -> Result<HttpResponsePayload, String> {
+    let timeout = std::time::Duration::from_secs(
+        payload.timeout_secs.unwrap_or(30),
+    );
+
+    let client = reqwest::Client::builder()
+        .timeout(timeout)
+        .danger_accept_invalid_certs(true)
+        .redirect(reqwest::redirect::Policy::limited(10))
+        .build()
+        .map_err(|e| {
+            format!("Failed to build HTTP client: {e}")
+        })?;
+
+    let method: reqwest::Method = payload.method.parse().map_err(
+        |_| format!("Invalid HTTP method: {}", payload.method),
+    )?;
+
+    let mut request = client.request(method, &payload.url);
+
+    for (k, v) in &payload.headers {
+        request = request.header(k.as_str(), v.as_str());
+    }
+
+    if let Some(ref body) = payload.body {
+        request = request.body(body.clone());
+    }
+
+    let start = Instant::now();
+    let response = request
+        .send()
+        .await
+        .map_err(|e| format!("Request failed: {e}"))?;
+    let duration_ms = start.elapsed().as_millis() as u64;
+
+    let status = response.status().as_u16();
+    let status_text = response
+        .status()
+        .canonical_reason()
+        .unwrap_or("")
+        .to_string();
+
+    let headers: HashMap<String, String> = response
+        .headers()
+        .iter()
+        .map(|(k, v)| {
+            (
+                k.as_str().to_string(),
+                v.to_str()
+                    .unwrap_or("<binary>")
+                    .to_string(),
+            )
+        })
+        .collect();
+
+    let body_bytes = response.bytes().await.map_err(|e| {
+        format!("Failed to read response body: {e}")
+    })?;
+    let size_bytes = body_bytes.len();
+    let body =
+        String::from_utf8_lossy(&body_bytes).to_string();
+
+    Ok(HttpResponsePayload {
+        status,
+        status_text,
+        headers,
+        body,
+        duration_ms,
+        size_bytes,
+    })
+}
+
 /// Convert a scenario name to a safe YAML filename.
 fn sanitize_filename(name: &str) -> String {
     let slug: String = name

@@ -54,6 +54,7 @@ fn main() {
             commands::get_run_history,
             commands::open_project,
             commands::create_project,
+            commands::send_http_request,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Muon desktop app");
