@@ -205,6 +205,43 @@ export const DEFAULT_REQUEST: HttpRequestConfig = {
 	timeoutSecs: 30,
 }
 
+// ── Collections ─────────────────────────────────────
+
+export interface Collection {
+	id: string
+	name: string
+	description: string
+	items: CollectionItem[]
+	variables: Record<string, string>
+	created_at: string
+	updated_at: string
+}
+
+export type CollectionItem = CollectionFolder | CollectionRequest
+
+export interface CollectionFolder {
+	type: 'folder'
+	id: string
+	name: string
+	items: CollectionItem[]
+}
+
+export interface CollectionRequest {
+	type: 'request'
+	id: string
+	name: string
+	config: HttpRequestConfig
+	response?: HttpResponseData | null
+}
+
+export interface BatchRunResult {
+	request_id: string
+	name: string
+	response: HttpResponseData | null
+	error: string | null
+	duration_ms: number
+}
+
 // Step editor tab types
 export type StepEditorTab =
 	| 'params'
