@@ -8,6 +8,7 @@ import { ProjectsPage } from './pages/projects'
 import { RequestBuilderPage } from './pages/request-builder'
 import { RunHistoryPage } from './pages/run-history'
 import { ScenarioDetailPage } from './pages/scenario-detail'
+import { ScenarioGeneratorPage } from './pages/scenario-generator'
 import { ScenariosListPage } from './pages/scenarios-list'
 import { SettingsPage } from './pages/settings'
 import { StepEditorPage } from './pages/step-editor'
@@ -25,6 +26,7 @@ export function App() {
           <Route path="/scenarios/:id/edit" element={<StepEditorPage />} />
           <Route path="/scenarios/:id/flow" element={<FlowEditorPage />} />
           <Route path="/request" element={<RequestBuilderPage />} />
+          <Route path="/generate" element={<ScenarioGeneratorPage />} />
           <Route path="/collections" element={<CollectionsPage />} />
           <Route path="/environments" element={<EnvironmentsPage />} />
           <Route path="/history" element={<RunHistoryPage />} />
