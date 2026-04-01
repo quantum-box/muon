@@ -14,10 +14,16 @@ export function ResponseViewer({ result, isStreaming = false }: ResponseViewerPr
   const [activeTab, setActiveTab] = useState<ResponseViewerTab>('pretty')
   const [copied, setCopied] = useState(false)
 
+  const bodyStr = result?.response.body ?? ''
+
   const hasSseContent = useMemo(() => {
-    const body = result?.response.body ?? ''
-    return body.includes('event:') && body.includes('data:')
-  }, [result])
+    return bodyStr.includes('event:') && bodyStr.includes('data:')
+  }, [bodyStr])
+
+  const parsedJson = useMemo(() => {
+    if (!bodyStr) return null
+    try { return JSON.parse(bodyStr) } catch { return null }
+  }, [bodyStr])
 
   const tabs: { id: ResponseViewerTab; label: string; show: boolean }[] = [
     { id: 'pretty', label: 'Pretty', show: true },
@@ -47,10 +53,6 @@ export function ResponseViewer({ result, isStreaming = false }: ResponseViewerPr
 
   const formattedBody = formatJson(bodyStr)
   const bodySize = new Blob([bodyStr]).size
-
-  const parsedJson = useMemo(() => {
-    try { return JSON.parse(bodyStr) } catch { return null }
-  }, [bodyStr])
 
   function handleCopy() {
     navigator.clipboard.writeText(formattedBody)
