@@ -641,7 +641,7 @@ function Dialog({
 		<div className='fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50'>
 			<div
 				className={cn(
-					'bg-slate-800 border border-slate-700 rounded-lg shadow-2xl p-6',
+					'relative bg-slate-800 border border-slate-700 rounded-lg shadow-2xl p-6',
 					wide ? 'w-full max-w-lg' : 'w-full max-w-sm',
 				)}
 			>
