@@ -48,6 +48,10 @@ export function ResponseViewer({ result, isStreaming = false }: ResponseViewerPr
   const formattedBody = formatJson(bodyStr)
   const bodySize = new Blob([bodyStr]).size
 
+  const parsedJson = useMemo(() => {
+    try { return JSON.parse(bodyStr) } catch { return null }
+  }, [bodyStr])
+
   function handleCopy() {
     navigator.clipboard.writeText(formattedBody)
     setCopied(true)
