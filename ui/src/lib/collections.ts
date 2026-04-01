@@ -401,7 +401,15 @@ function toYaml(obj: unknown, indent = 0): string {
 	const pad = '  '.repeat(indent)
 	if (obj === null || obj === undefined) return 'null'
 	if (typeof obj === 'string') {
-		if (obj.includes('\n') || obj.includes(': ') || obj.includes('#')) {
+		if (
+			obj === '' ||
+			obj.includes('\n') ||
+			obj.includes(': ') ||
+			obj.includes('#') ||
+			/^[\[\{\*&!%@`|>'",\-?\s]/.test(obj) ||
+			/^(true|false|yes|no|on|off|null|~)$/i.test(obj) ||
+			/^[\d.+-]/.test(obj)
+		) {
 			return `"${obj.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
 		}
 		return obj
