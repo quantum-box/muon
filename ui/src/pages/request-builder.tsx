@@ -12,12 +12,16 @@ import {
 	Search,
 	Send,
 	Trash2,
+	Wand2,
 	X,
 } from 'lucide-react'
 import { useCallback, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { JsonTreeView } from '../components/json-tree-view'
 import { KeyValueEditor } from '../components/key-value-editor'
 import { SseStreamViewer } from '../components/sse-stream-viewer'
+import { useEnvironments } from '../hooks/use-environments'
+import { expandConfigVariables } from '../lib/environments'
 import {
 	addRequestHistory,
 	clearRequestHistory,
@@ -89,6 +93,8 @@ function isWithinDateFilter(timestamp: string, filter: DateFilter): boolean {
 }
 
 export function RequestBuilderPage() {
+	const navigate = useNavigate()
+	const { activeVariables, activeEnvironment } = useEnvironments()
 	const [config, setConfig] = useState<HttpRequestConfig>(
 		cloneRequest(DEFAULT_REQUEST),
 	)
@@ -150,7 +156,8 @@ export function RequestBuilderPage() {
 		setError(null)
 		setResponse(null)
 		try {
-			const result = await sendHttpRequest(config)
+			const expandedConfig = expandConfigVariables(config, activeVariables)
+			const result = await sendHttpRequest(expandedConfig)
 			setResponse(result)
 			// Auto-save to history
 			const entry: RequestHistoryEntry = {
@@ -178,7 +185,7 @@ export function RequestBuilderPage() {
 		} finally {
 			setLoading(false)
 		}
-	}, [config])
+	}, [config, activeVariables])
 
 	const handleKeyDown = useCallback(
 		(e: React.KeyboardEvent) => {
@@ -422,7 +429,33 @@ export function RequestBuilderPage() {
 				>
 					<Save className='w-4 h-4' />
 				</button>
+
+				{/* Generate Scenario button */}
+				<button
+					type='button'
+					onClick={() => navigate('/generate')}
+					className='px-2 py-1.5 rounded text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors'
+					title='Generate scenario YAML from history'
+				>
+					<Wand2 className='w-4 h-4' />
+				</button>
 			</div>
+
+			{/* Active environment indicator */}
+			{activeEnvironment && (
+				<div className='flex items-center gap-2 px-4 py-1 bg-emerald-500/5 border-b border-emerald-500/10'>
+					<div className='w-1.5 h-1.5 rounded-full bg-emerald-500' />
+					<span className='text-[10px] text-emerald-400 font-medium'>
+						{activeEnvironment.name}
+					</span>
+					<span className='text-[10px] text-slate-600'>
+						{Object.keys(activeVariables).length} variables available
+					</span>
+					<span className='text-[10px] text-slate-600 ml-auto'>
+						{'Use {{variable}} syntax'}
+					</span>
+				</div>
+			)}
 
 			{/* Main content */}
 			<div className='flex-1 flex overflow-hidden'>
