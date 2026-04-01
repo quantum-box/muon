@@ -141,11 +141,13 @@ export function useBatchRun() {
 	const [running, setRunning] = useState(false)
 	const [results, setResults] = useState<BatchRunResult[]>([])
 	const [currentIndex, setCurrentIndex] = useState(-1)
+	const [totalCount, setTotalCount] = useState(0)
 
 	const run = useCallback(async (requests: CollectionRequest[]) => {
 		setRunning(true)
 		setResults([])
 		setCurrentIndex(0)
+		setTotalCount(requests.length)
 
 		const allResults: BatchRunResult[] = []
 		for (let i = 0; i < requests.length; i++) {
@@ -185,5 +187,5 @@ export function useBatchRun() {
 		[run],
 	)
 
-	return { running, results, currentIndex, run, runFolder }
+	return { running, results, currentIndex, totalCount, run, runFolder }
 }

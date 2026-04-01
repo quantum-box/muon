@@ -67,6 +67,7 @@ export function CollectionsPage() {
 		running: batchRunning,
 		results: batchResults,
 		currentIndex: batchIndex,
+		totalCount: batchTotalCount,
 		runFolder,
 	} = useBatchRun()
 
@@ -337,6 +338,7 @@ export function CollectionsPage() {
 					results={batchResults}
 					running={batchRunning}
 					currentIndex={batchIndex}
+					totalCount={batchTotalCount}
 					onClose={() => setShowBatchResults(false)}
 				/>
 			)}
@@ -1268,11 +1270,13 @@ function BatchResultsModal({
 	results,
 	running,
 	currentIndex,
+	totalCount,
 	onClose,
 }: {
 	results: import('../lib/types').BatchRunResult[]
 	running: boolean
 	currentIndex: number
+	totalCount: number
 	onClose: () => void
 }) {
 	const passed = results.filter(
@@ -1290,7 +1294,7 @@ function BatchResultsModal({
 				{running && (
 					<span className='flex items-center gap-1.5 text-xs text-blue-400'>
 						<Loader2 className='w-3.5 h-3.5 animate-spin' />
-						Running ({currentIndex + 1}/{results.length + (running ? 1 : 0)})
+						Running ({currentIndex + 1}/{totalCount})
 					</span>
 				)}
 				{!running && results.length > 0 && (

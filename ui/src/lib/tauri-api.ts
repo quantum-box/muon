@@ -285,6 +285,7 @@ export async function sendHttpRequest(
 				headers,
 				body: body ?? null,
 				timeout_secs: config.timeoutSecs,
+				skip_tls_verify: config.skipTlsVerify ?? false,
 			},
 		})
 	}
