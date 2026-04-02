@@ -110,7 +110,7 @@ export interface RunHistoryEntry {
 	result: ScenarioResult | null
 }
 
-// Environment types
+// Environment types (backend API)
 export interface Environment {
 	name: string
 	variables: Record<string, string>
@@ -119,6 +119,21 @@ export interface Environment {
 export interface EnvironmentListItem {
 	name: string
 	variable_count: number
+}
+
+// ── Client-side Environment Management ─────────────
+export interface MuonEnvironment {
+	id: string
+	name: string
+	variables: EnvironmentVariable[]
+	created_at: string
+	updated_at: string
+}
+
+export interface EnvironmentVariable {
+	key: string
+	value: string
+	enabled: boolean
 }
 
 // Validation
