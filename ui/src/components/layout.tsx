@@ -1,24 +1,26 @@
-import { type ReactNode, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
 import {
-  Zap,
   FolderOpen,
-  List,
   Globe,
   History,
-  Settings,
+  Library,
+  List,
   PanelLeftClose,
   PanelLeftOpen,
   Send,
+  Settings,
+  Zap,
 } from 'lucide-react'
-import { cn } from '../lib/utils'
-import { isTauri, getSettings, saveSettings } from '../lib/tauri-api'
+import { type ReactNode, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { useProject } from '../contexts/project-context'
 import { useGlobalShortcuts } from '../hooks/use-keyboard-shortcuts'
+import { getSettings, isTauri, saveSettings } from '../lib/tauri-api'
+import { cn } from '../lib/utils'
 
 const navItems = [
   { to: '/projects', label: 'Projects', icon: FolderOpen },
   { to: '/scenarios', label: 'Scenarios', icon: List },
+  { to: '/collections', label: 'Collections', icon: Library },
   { to: '/request', label: 'API Client', icon: Send },
   { to: '/environments', label: 'Environments', icon: Globe },
   { to: '/history', label: 'History', icon: History },
@@ -27,7 +29,9 @@ const navItems = [
 
 export function Layout({ children }: { children: ReactNode }) {
   const location = useLocation()
-  const [collapsed, setCollapsed] = useState(() => getSettings().sidebar_collapsed)
+  const [collapsed, setCollapsed] = useState(
+    () => getSettings().sidebar_collapsed,
+  )
 
   useGlobalShortcuts()
 
@@ -45,7 +49,7 @@ export function Layout({ children }: { children: ReactNode }) {
         location.pathname.startsWith('/scenarios/')
       )
     }
-    return location.pathname === to || location.pathname.startsWith(to + '/')
+    return location.pathname === to || location.pathname.startsWith(`${to}/`)
   }
 
   // Welcome page gets a minimal layout (no sidebar)
