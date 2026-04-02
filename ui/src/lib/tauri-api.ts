@@ -285,6 +285,7 @@ export async function sendHttpRequest(
 				headers,
 				body: body ?? null,
 				timeout_secs: config.timeoutSecs,
+				skip_tls_verify: config.skipTlsVerify ?? false,
 			},
 		})
 	}
@@ -369,6 +370,129 @@ export function saveRequest(entry: SavedRequest): void {
 export function deleteSavedRequest(id: string): void {
 	const items = getSavedRequests().filter(r => r.id !== id)
 	localStorage.setItem(SAVED_REQUESTS_KEY, JSON.stringify(items))
+}
+
+// --- Ad-hoc HTTP request (Tauri IPC or fetch proxy) ---
+
+import type {
+  HttpRequestConfig,
+  HttpResponseData,
+  SavedRequest,
+  KeyValuePair,
+} from './types'
+
+function enabledPairsToRecord(pairs: KeyValuePair[]): Record<string, string> {
+  const result: Record<string, string> = {}
+  for (const p of pairs) {
+    if (p.enabled && p.key.trim()) {
+      result[p.key] = p.value
+    }
+  }
+  return result
+}
+
+function buildUrlWithParams(base: string, params: KeyValuePair[]): string {
+  const enabled = params.filter((p) => p.enabled && p.key.trim())
+  if (enabled.length === 0) return base
+  const qs = new URLSearchParams(enabled.map((p) => [p.key, p.value]))
+  const sep = base.includes('?') ? '&' : '?'
+  return `${base}${sep}${qs.toString()}`
+}
+
+function buildBodyFromConfig(config: HttpRequestConfig): string | undefined {
+  if (config.bodyType === 'none' || config.method === 'GET' || config.method === 'HEAD') {
+    return undefined
+  }
+  if (config.bodyType === 'form') {
+    const pairs = config.formData.filter((p) => p.enabled && p.key.trim())
+    return new URLSearchParams(pairs.map((p) => [p.key, p.value])).toString()
+  }
+  return config.bodyContent || undefined
+}
+
+export async function sendHttpRequest(
+  config: HttpRequestConfig,
+): Promise<HttpResponseData> {
+  const url = buildUrlWithParams(config.url, config.params)
+  const headers = enabledPairsToRecord(config.headers)
+  const body = buildBodyFromConfig(config)
+
+  // Auto-set Content-Type if not specified
+  const hasContentType = Object.keys(headers).some(
+    (k) => k.toLowerCase() === 'content-type',
+  )
+  if (!hasContentType && body != null) {
+    if (config.bodyType === 'json') {
+      headers['Content-Type'] = 'application/json'
+    } else if (config.bodyType === 'form') {
+      headers['Content-Type'] = 'application/x-www-form-urlencoded'
+    }
+  }
+
+  if (isTauri()) {
+    const invoke = await getInvoke()
+    return invoke<HttpResponseData>('send_http_request', {
+      payload: {
+        method: config.method,
+        url,
+        headers,
+        body: body ?? null,
+        timeout_secs: config.timeoutSecs,
+      },
+    })
+  }
+
+  // Browser fallback: use fetch (limited by CORS)
+  const start = performance.now()
+  const resp = await fetch(url, {
+    method: config.method,
+    headers,
+    body,
+  })
+  const duration_ms = Math.round(performance.now() - start)
+  const respBody = await resp.text()
+  const respHeaders: Record<string, string> = {}
+  resp.headers.forEach((v, k) => {
+    respHeaders[k] = v
+  })
+  return {
+    status: resp.status,
+    status_text: resp.statusText,
+    headers: respHeaders,
+    body: respBody,
+    duration_ms,
+    size_bytes: new Blob([respBody]).size,
+  }
+}
+
+// --- Saved requests (localStorage) ---
+
+const SAVED_REQUESTS_KEY = 'muon_saved_requests'
+
+export function getSavedRequests(): SavedRequest[] {
+  try {
+    const raw = localStorage.getItem(SAVED_REQUESTS_KEY)
+    return raw ? (JSON.parse(raw) as SavedRequest[]) : []
+  } catch {
+    return []
+  }
+}
+
+export function saveRequest(entry: SavedRequest): void {
+  const items = getSavedRequests()
+  const existing = items.findIndex((r) => r.id === entry.id)
+  if (existing >= 0) {
+    items[existing] = entry
+  } else {
+    items.unshift(entry)
+  }
+  if (items.length > 100) items.length = 100
+  localStorage.setItem(SAVED_REQUESTS_KEY, JSON.stringify(items))
+}
+
+export function deleteSavedRequest(id: string): void {
+  const items = getSavedRequests().filter((r) => r.id !== id)
+  localStorage.setItem(SAVED_REQUESTS_KEY, JSON.stringify(items))
 }
 
 // --- Ad-hoc HTTP request (Tauri IPC or fetch proxy) ---

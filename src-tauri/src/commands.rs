@@ -614,6 +614,9 @@ pub struct HttpRequestPayload {
     pub body: Option<String>,
     /// Timeout in seconds (default 30).
     pub timeout_secs: Option<u64>,
+    /// Skip TLS certificate verification (default false).
+    #[serde(default)]
+    pub skip_tls_verify: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -636,7 +639,7 @@ pub async fn send_http_request(
 
     let client = reqwest::Client::builder()
         .timeout(timeout)
-        .danger_accept_invalid_certs(true)
+        .danger_accept_invalid_certs(payload.skip_tls_verify)
         .redirect(reqwest::redirect::Policy::limited(10))
         .build()
         .map_err(|e| {

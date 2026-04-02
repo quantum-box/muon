@@ -181,6 +181,7 @@ export interface HttpRequestConfig {
 	bodyContent: string
 	formData: KeyValuePair[]
 	timeoutSecs: number
+	skipTlsVerify?: boolean
 }
 
 export interface HttpResponseData {
