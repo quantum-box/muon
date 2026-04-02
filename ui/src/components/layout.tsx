@@ -9,6 +9,7 @@ import {
   Settings,
   PanelLeftClose,
   PanelLeftOpen,
+  Send,
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { isTauri, getSettings, saveSettings } from '../lib/tauri-api'
@@ -18,6 +19,7 @@ import { useGlobalShortcuts } from '../hooks/use-keyboard-shortcuts'
 const navItems = [
   { to: '/projects', label: 'Projects', icon: FolderOpen },
   { to: '/scenarios', label: 'Scenarios', icon: List },
+  { to: '/request', label: 'API Client', icon: Send },
   { to: '/environments', label: 'Environments', icon: Globe },
   { to: '/history', label: 'History', icon: History },
   { to: '/settings', label: 'Settings', icon: Settings },

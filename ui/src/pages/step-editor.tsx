@@ -469,7 +469,7 @@ export function StepEditorPage() {
 
             {/* Right: response viewer */}
             <div className="flex-1 overflow-auto">
-              <ResponseViewer result={runResult} />
+              <ResponseViewer result={runResult} isStreaming={isRunning} />
             </div>
           </div>
         </div>

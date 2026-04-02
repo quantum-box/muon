@@ -26,3 +26,40 @@
 /* Pulse animation for running state */
 @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 .animate-pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
+
+/* JSON tree view */
+.json-tree-toggle {
+  cursor: pointer;
+  user-select: none;
+}
+.json-tree-toggle:hover { opacity: 0.8; }
+.json-tree-bracket { color: #94a3b8; }
+.json-tree-index { color: #64748b; }
+.json-tree-ellipsis { color: #64748b; font-style: italic; }
+.json-tree-count { color: #64748b; font-size: 10px; margin-left: 4px; }
+
+/* SSE event stream */
+.sse-event-badge {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+/* Resizable split pane */
+.split-handle {
+  cursor: col-resize;
+  transition: background-color 150ms;
+}
+.split-handle:hover,
+.split-handle:active {
+  background-color: #7c3aed;
+}
+.split-handle-h {
+  cursor: row-resize;
+}
+.split-handle-h:hover,
+.split-handle-h:active {
+  background-color: #7c3aed;
+}

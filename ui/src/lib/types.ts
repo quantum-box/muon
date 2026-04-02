@@ -149,9 +149,58 @@ export const CONTENT_TYPES = [
   'application/xml',
 ] as const
 
+// ── Ad-hoc HTTP Request Builder ──────────────────────
+
+export interface HttpRequestConfig {
+  method: HttpMethod
+  url: string
+  headers: KeyValuePair[]
+  params: KeyValuePair[]
+  bodyType: 'none' | 'json' | 'form' | 'raw'
+  bodyContent: string
+  formData: KeyValuePair[]
+  timeoutSecs: number
+}
+
+export interface HttpResponseData {
+  status: number
+  status_text: string
+  headers: Record<string, string>
+  body: string
+  duration_ms: number
+  size_bytes: number
+}
+
+export interface SavedRequest {
+  id: string
+  name: string
+  config: HttpRequestConfig
+  timestamp: string
+}
+
+export const DEFAULT_REQUEST: HttpRequestConfig = {
+  method: 'GET',
+  url: '',
+  headers: [{ key: '', value: '', enabled: true }],
+  params: [{ key: '', value: '', enabled: true }],
+  bodyType: 'none',
+  bodyContent: '',
+  formData: [{ key: '', value: '', enabled: true }],
+  timeoutSecs: 30,
+}
+
 // Step editor tab types
 export type StepEditorTab = 'params' | 'headers' | 'body' | 'auth' | 'tests' | 'variables'
-export type ResponseViewerTab = 'pretty' | 'raw' | 'headers' | 'tests'
+export type ResponseViewerTab = 'pretty' | 'tree' | 'raw' | 'headers' | 'tests' | 'sse'
+
+// SSE streaming types
+export interface SseStreamEvent {
+  id: number
+  event_type: string
+  data: string
+  parsed_data: unknown | null
+  timestamp: number
+}
 
 // Test assertion result
 export interface AssertionResult {

@@ -10,6 +10,7 @@ import { FlowEditorPage } from './pages/flow-editor'
 import { EnvironmentsPage } from './pages/environments'
 import { RunHistoryPage } from './pages/run-history'
 import { SettingsPage } from './pages/settings'
+import { RequestBuilderPage } from './pages/request-builder'
 
 export function App() {
   return (
@@ -22,6 +23,7 @@ export function App() {
           <Route path="/scenarios/:id" element={<ScenarioDetailPage />} />
           <Route path="/scenarios/:id/edit" element={<StepEditorPage />} />
           <Route path="/scenarios/:id/flow" element={<FlowEditorPage />} />
+          <Route path="/request" element={<RequestBuilderPage />} />
           <Route path="/environments" element={<EnvironmentsPage />} />
           <Route path="/history" element={<RunHistoryPage />} />
           <Route path="/settings" element={<SettingsPage />} />
