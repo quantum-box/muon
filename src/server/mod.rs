@@ -5,7 +5,10 @@
 //! The frontend is embedded into the binary via `rust-embed`.
 
 pub mod environments;
+pub mod health;
 pub mod routes;
+pub mod scheduler;
+pub mod schedules;
 pub mod sse;
 pub mod state;
 pub mod validation;
@@ -15,6 +18,7 @@ use axum::http::{header, StatusCode};
 use axum::response::{Html, IntoResponse, Response};
 use axum::Router;
 use rust_embed::Embed;
+use schedules::ScheduleState;
 use state::AppState;
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
@@ -23,18 +27,32 @@ use tower_http::cors::{Any, CorsLayer};
 #[folder = "ui/dist"]
 struct Asset;
 
-/// Build the axum [`Router`] with all API routes and middleware.
-pub fn create_router(state: Arc<AppState>) -> Router {
+/// Build the axum [`Router`] with all API routes and
+/// middleware, including the cron scheduler endpoints.
+pub fn create_router(
+    state: Arc<AppState>,
+    schedule_state: ScheduleState,
+) -> Router {
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
         .allow_headers(Any);
 
-    Router::new()
+    // Routes that use AppState
+    let app_routes = Router::new()
         .nest("/api", routes::api_routes())
         .nest("/api", environments::env_routes())
         .nest("/api", validation::validation_routes())
-        .with_state(state)
+        .with_state(state);
+
+    // Routes that use ScheduleState (schedules + health)
+    let sched_routes = Router::new()
+        .nest("/api", schedules::schedule_routes())
+        .nest("/api", health::health_routes())
+        .with_state(schedule_state);
+
+    app_routes
+        .merge(sched_routes)
         .layer(cors)
         .fallback(static_handler)
 }

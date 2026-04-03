@@ -5,7 +5,10 @@ use chrono::Utc;
 use clap::{Parser, Subcommand, ValueEnum};
 use muon::{
     api_client::TachyonOpsClient,
-    server::{self, state::AppState},
+    server::{
+        self, health::record_start_time, scheduler::SchedulerManager,
+        schedules::ScheduleState, state::AppState,
+    },
     CiMetadata, DefaultTestRunner, TestConfigManager, TestResult,
     TestRunReport, TestRunner, TestScenario,
 };
@@ -450,7 +453,7 @@ async fn start_serve(
         ));
     }
 
-    let state = AppState::new(scenario_dir);
+    let state = AppState::new(scenario_dir.clone());
 
     // Load initial scenarios
     state.reload_scenarios().await;
@@ -463,7 +466,20 @@ async fn start_serve(
     // Start file watcher
     let _watcher = server::watcher::start_watcher(state.clone()).await?;
 
-    let router = server::create_router(state);
+    // Initialize cron scheduler
+    let data_dir = scenario_dir.join(".muon");
+    let scheduler = SchedulerManager::new(state.clone(), &data_dir)
+        .await
+        .context("Failed to initialize scheduler")?;
+
+    let schedule_state = ScheduleState {
+        app_state: state.clone(),
+        scheduler,
+    };
+
+    record_start_time();
+
+    let router = server::create_router(state, schedule_state);
 
     let url = format!("http://127.0.0.1:{port}");
     info!("muon server running at {}", url);
