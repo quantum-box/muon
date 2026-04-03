@@ -1,5 +1,7 @@
 //! REST API route handlers for the muon web server.
 
+use crate::metrics::collector::InMemoryMetricsCollector;
+use crate::metrics::collector::MetricsCollector;
 use crate::model::TestScenario;
 use crate::runner::DefaultTestRunner;
 use crate::server::sse::run_event_stream;
@@ -123,6 +125,8 @@ async fn run_scenario(
     // Spawn execution task
     let state_clone = state.clone();
     let run_id_clone = run_id.clone();
+    let scenario_id_clone = id.clone();
+    let scenario_name_clone = scenario_name.clone();
     tokio::spawn(async move {
         let runner = DefaultTestRunner::new();
         let result = runner.run_with_events(&scenario, tx).await;
@@ -136,6 +140,19 @@ async fn run_scenario(
                     } else {
                         RunStatus::Failed
                     };
+
+                    // Record metrics from this run.
+                    let collector = InMemoryMetricsCollector::new(
+                        state_clone.metrics_store.clone(),
+                    );
+                    collector
+                        .record(
+                            &scenario_id_clone,
+                            &scenario_name_clone,
+                            &test_result,
+                        )
+                        .await;
+
                     record.result = Some(test_result);
                 }
                 Err(e) => {
