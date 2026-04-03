@@ -115,7 +115,10 @@ async fn run_scenario(
         started_at: Utc::now(),
         status: RunStatus::Running,
     };
-    state.runs.write().await.insert(run_id.clone(), run_record);
+    state.run_repo.insert(&run_record).await.map_err(|e| {
+        error!("Failed to save run: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     // Create event channel
     let (tx, rx) = mpsc::channel(64);
@@ -127,22 +130,29 @@ async fn run_scenario(
         let runner = DefaultTestRunner::new();
         let result = runner.run_with_events(&scenario, tx).await;
 
-        let mut runs = state_clone.runs.write().await;
-        if let Some(record) = runs.get_mut(&run_id_clone) {
-            match result {
-                Ok(test_result) => {
-                    record.status = if test_result.success {
-                        RunStatus::Completed
-                    } else {
-                        RunStatus::Failed
-                    };
-                    record.result = Some(test_result);
-                }
-                Err(e) => {
-                    error!("Run {} failed: {}", run_id_clone, e);
-                    record.status = RunStatus::Failed;
-                }
+        let mut record = match state_clone.run_repo.get(&run_id_clone).await
+        {
+            Ok(Some(r)) => r,
+            _ => return,
+        };
+
+        match result {
+            Ok(test_result) => {
+                record.status = if test_result.success {
+                    RunStatus::Completed
+                } else {
+                    RunStatus::Failed
+                };
+                record.result = Some(test_result);
             }
+            Err(e) => {
+                error!("Run {} failed: {}", run_id_clone, e);
+                record.status = RunStatus::Failed;
+            }
+        }
+
+        if let Err(e) = state_clone.run_repo.update(&record).await {
+            error!("Failed to update run {}: {}", run_id_clone, e);
         }
     });
 
@@ -152,11 +162,12 @@ async fn run_scenario(
 /// `GET /api/runs` — List all past runs.
 async fn list_runs(
     State(state): State<Arc<AppState>>,
-) -> impl IntoResponse {
-    let runs = state.runs.read().await;
-    let mut records: Vec<&RunRecord> = runs.values().collect();
-    records.sort_by(|a, b| b.started_at.cmp(&a.started_at));
-    Json(records.into_iter().cloned().collect::<Vec<_>>())
+) -> Result<impl IntoResponse, StatusCode> {
+    let records = state.run_repo.list_all().await.map_err(|e| {
+        error!("Failed to list runs: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    Ok(Json(records))
 }
 
 /// `GET /api/runs/:id` — Get a specific run's detail.
@@ -164,9 +175,16 @@ async fn get_run(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let runs = state.runs.read().await;
-    let record = runs.get(&id).ok_or(StatusCode::NOT_FOUND)?;
-    Ok(Json(record.clone()))
+    let record = state
+        .run_repo
+        .get(&id)
+        .await
+        .map_err(|e| {
+            error!("Failed to get run: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .ok_or(StatusCode::NOT_FOUND)?;
+    Ok(Json(record))
 }
 
 // ── Scenario CRUD ──────────────────────────────────────

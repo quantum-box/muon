@@ -5,6 +5,7 @@
 //! The frontend is embedded into the binary via `rust-embed`.
 
 pub mod environments;
+pub mod repository;
 pub mod routes;
 pub mod sse;
 pub mod state;

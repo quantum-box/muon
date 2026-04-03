@@ -1,10 +1,10 @@
 //! Shared application state for the muon web server.
 
+use super::repository::{self, RunRepository};
 use crate::config::TestConfigManager;
 use crate::model::{TestResult, TestScenario};
 use chrono::{DateTime, Utc};
-use serde::Serialize;
-use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};
@@ -14,8 +14,8 @@ use tracing::{debug, warn};
 pub struct AppState {
     /// Loaded scenario metadata.
     pub scenarios: RwLock<Vec<ScenarioInfo>>,
-    /// Execution history keyed by run ID.
-    pub runs: RwLock<HashMap<String, RunRecord>>,
+    /// Run history persistence.
+    pub run_repo: Arc<dyn RunRepository>,
     /// Directory being watched for scenario changes.
     pub scenario_dir: PathBuf,
     /// Config manager for loading scenarios.
@@ -26,16 +26,25 @@ pub struct AppState {
 }
 
 impl AppState {
-    /// Create a new `AppState` from the given scenario
-    /// directory.
+    /// Create a new `AppState` with the default in-memory
+    /// run repository.
     pub fn new(scenario_dir: PathBuf) -> Arc<Self> {
+        Self::with_repository(scenario_dir, repository::in_memory())
+    }
+
+    /// Create a new `AppState` backed by the given
+    /// repository.
+    pub fn with_repository(
+        scenario_dir: PathBuf,
+        run_repo: Arc<dyn RunRepository>,
+    ) -> Arc<Self> {
         let (change_tx, _) = broadcast::channel(16);
         let mut config_manager = TestConfigManager::new();
         config_manager.test_paths = vec![scenario_dir.clone()];
 
         Arc::new(Self {
             scenarios: RwLock::new(Vec::new()),
-            runs: RwLock::new(HashMap::new()),
+            run_repo,
             scenario_dir,
             config_manager,
             change_tx,
@@ -155,7 +164,7 @@ pub struct RunSummary {
 }
 
 /// Full record of a scenario execution.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RunRecord {
     /// Unique run identifier.
     pub id: String,
@@ -172,7 +181,7 @@ pub struct RunRecord {
 }
 
 /// Execution status of a run.
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum RunStatus {
     Pending,

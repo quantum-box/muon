@@ -5,7 +5,7 @@ use chrono::Utc;
 use clap::{Parser, Subcommand, ValueEnum};
 use muon::{
     api_client::TachyonOpsClient,
-    server::{self, state::AppState},
+    server::{self, repository, state::AppState},
     CiMetadata, DefaultTestRunner, TestConfigManager, TestResult,
     TestRunReport, TestRunner, TestScenario,
 };
@@ -86,6 +86,11 @@ enum Command {
         /// Scenario directory path.
         #[arg(long = "scenario-path")]
         scenario_path: Option<String>,
+        /// MySQL / TiDB connection URL for persistent
+        /// run history. Falls back to in-memory storage
+        /// when omitted.
+        #[arg(long, env = "DATABASE_URL")]
+        database_url: Option<String>,
         /// Open browser automatically.
         #[arg(long)]
         open: bool,
@@ -440,6 +445,7 @@ fn resolve_scenario_dir(path: Option<String>) -> PathBuf {
 async fn start_serve(
     port: u16,
     scenario_path: Option<String>,
+    database_url: Option<String>,
     open: bool,
 ) -> Result<()> {
     let scenario_dir = resolve_scenario_dir(scenario_path);
@@ -450,7 +456,16 @@ async fn start_serve(
         ));
     }
 
-    let state = AppState::new(scenario_dir);
+    let state = if let Some(url) = &database_url {
+        info!("Connecting to database for run history…");
+        let repo = repository::SqlxRunRepository::new(url)
+            .await
+            .context("database setup failed")?;
+        AppState::with_repository(scenario_dir, std::sync::Arc::new(repo))
+    } else {
+        info!("Using in-memory run history (no --database-url)");
+        AppState::new(scenario_dir)
+    };
 
     // Load initial scenarios
     state.reload_scenarios().await;
@@ -508,9 +523,10 @@ async fn main() -> Result<()> {
         Some(Command::Serve {
             port,
             scenario_path,
+            database_url,
             open,
         }) => {
-            start_serve(port, scenario_path, open).await?;
+            start_serve(port, scenario_path, database_url, open).await?;
         }
         Some(Command::Run) | None => {
             // Default: run mode (backward compatible)
