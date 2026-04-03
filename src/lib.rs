@@ -13,6 +13,7 @@ pub mod runner;
 pub mod server;
 pub mod sse;
 pub mod validator;
+pub mod webhook;
 
 pub use config::*;
 pub use model::*;
@@ -80,6 +81,7 @@ mod tests {
                 timeout: 30,
                 continue_on_failure: false,
             },
+            webhooks: vec![],
         };
 
         // TODO: add English comment

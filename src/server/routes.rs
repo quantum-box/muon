@@ -4,6 +4,7 @@ use crate::model::TestScenario;
 use crate::runner::DefaultTestRunner;
 use crate::server::sse::run_event_stream;
 use crate::server::state::{AppState, RunRecord, RunStatus, ScenarioInfo};
+use crate::webhook::{self, WebhookConfig, WebhookSender, WebhookType};
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
@@ -15,7 +16,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use tracing::error;
+use tracing::{error, info};
 
 /// Build the API sub-router with all endpoints.
 pub fn api_routes() -> Router<Arc<AppState>> {
@@ -28,8 +29,13 @@ pub fn api_routes() -> Router<Arc<AppState>> {
                 .delete(delete_scenario),
         )
         .route("/scenarios/:id/run", post(run_scenario))
+        .route(
+            "/scenarios/:id/webhooks",
+            get(get_scenario_webhooks).put(update_scenario_webhooks),
+        )
         .route("/runs", get(list_runs))
         .route("/runs/:id", get(get_run))
+        .route("/webhook-config/test", post(test_webhook))
 }
 
 /// `GET /api/scenarios` — List all loaded scenarios.
@@ -185,6 +191,8 @@ struct ScenarioPayload {
     vars: HashMap<String, serde_json::Value>,
     #[serde(default)]
     config: crate::model::TestConfig,
+    #[serde(default)]
+    webhooks: Vec<crate::webhook::WebhookConfig>,
 }
 
 impl ScenarioPayload {
@@ -196,6 +204,7 @@ impl ScenarioPayload {
             steps: self.steps,
             vars: self.vars,
             config: self.config,
+            webhooks: self.webhooks,
         }
     }
 }
@@ -291,6 +300,146 @@ async fn delete_scenario(
     state.reload_scenarios().await;
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+// ── Webhook endpoints ─────────────────────────────────
+
+/// `GET /api/scenarios/:id/webhooks` — Get webhook configs
+/// for a scenario.
+async fn get_scenario_webhooks(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let file_path = {
+        let scenarios = state.scenarios.read().await;
+        let info = scenarios
+            .iter()
+            .find(|s| s.id == id)
+            .ok_or(StatusCode::NOT_FOUND)?;
+        info.file_path.clone()
+    };
+
+    let scenario =
+        state.load_scenario_by_path(&file_path).map_err(|e| {
+            error!("Failed to load scenario {}: {}", id, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    Ok(Json(scenario.webhooks))
+}
+
+/// `PUT /api/scenarios/:id/webhooks` — Update webhook
+/// configs for a scenario.
+async fn update_scenario_webhooks(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(webhooks): Json<Vec<WebhookConfig>>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let file_path = {
+        let scenarios = state.scenarios.read().await;
+        let info = scenarios
+            .iter()
+            .find(|s| s.id == id)
+            .ok_or(StatusCode::NOT_FOUND)?;
+        info.file_path.clone()
+    };
+
+    let mut scenario =
+        state.load_scenario_by_path(&file_path).map_err(|e| {
+            error!("Failed to load scenario {}: {}", id, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    scenario.webhooks = webhooks.clone();
+
+    let yaml = scenario.to_yaml().map_err(|e| {
+        error!("Failed to serialize scenario: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    std::fs::write(&file_path, &yaml).map_err(|e| {
+        error!("Failed to write scenario file: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    state.reload_scenarios().await;
+
+    Ok(Json(webhooks))
+}
+
+/// Request body for the test webhook endpoint.
+#[derive(Debug, Deserialize)]
+struct TestWebhookPayload {
+    url: String,
+    #[serde(default = "default_test_webhook_type")]
+    webhook_type: WebhookType,
+    #[serde(default)]
+    headers: HashMap<String, String>,
+}
+
+fn default_test_webhook_type() -> WebhookType {
+    WebhookType::Generic
+}
+
+/// `POST /api/webhook-config/test` — Send a test
+/// notification to verify webhook connectivity.
+async fn test_webhook(
+    Json(payload): Json<TestWebhookPayload>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let config = WebhookConfig {
+        url: payload.url,
+        webhook_type: payload.webhook_type.clone(),
+        notify_on: webhook::NotifyOn::Always,
+        name: Some("Test notification".to_string()),
+        headers: payload.headers,
+        max_retries: 0,
+        retry_interval_ms: 1000,
+    };
+
+    let sample_results = vec![crate::model::TestResult {
+        name: "sample-scenario".to_string(),
+        success: true,
+        error: None,
+        steps: vec![crate::model::StepResult {
+            name: "sample-step".to_string(),
+            success: true,
+            error: None,
+            request: crate::model::RequestInfo {
+                method: "GET".to_string(),
+                url: "http://example.com/api/health".to_string(),
+                headers: HashMap::new(),
+                body: None,
+            },
+            response: None,
+            duration_ms: 42,
+        }],
+        duration_ms: 50,
+    }];
+
+    let test_payload = webhook::template::build_payload(
+        &payload.webhook_type,
+        &sample_results,
+        None,
+    );
+
+    let sender = WebhookSender::new();
+    let result = sender.send(&config, &test_payload).await;
+
+    if result.success {
+        info!("Test webhook delivered to {}", result.url_redacted);
+        Ok(Json(serde_json::json!({
+            "success": true,
+            "message": "Test notification sent successfully",
+            "status_code": result.status_code,
+        })))
+    } else {
+        error!("Test webhook failed: {:?}", result.error);
+        Ok(Json(serde_json::json!({
+            "success": false,
+            "error": result.error,
+            "status_code": result.status_code,
+        })))
+    }
 }
 
 /// Convert a name into a filesystem-safe slug.
