@@ -344,12 +344,8 @@ async fn deploy_complete(
         results: result_summaries,
     };
 
-    let status = if all_passed {
-        StatusCode::OK
-    } else {
-        StatusCode::OK // Always 200; success field
-                       // indicates pass/fail
-    };
+    // Always 200; the `success` field in the JSON body indicates pass/fail.
+    let status = StatusCode::OK;
 
     Ok((status, Json(response)))
 }
@@ -535,9 +531,9 @@ fn build_check_run_summary(
     let failed = results.len() - passed;
 
     let mut md = String::new();
-    md.push_str(&format!("## Post-Deploy Scenario Results\n\n"));
+    md.push_str("## Post-Deploy Scenario Results\n\n");
     md.push_str(&format!("**Deploy URL:** {deploy_url}\n\n"));
-    md.push_str(&format!("| Metric | Value |\n|--------|-------|\n"));
+    md.push_str("| Metric | Value |\n|--------|-------|\n");
     md.push_str(&format!("| Total scenarios | {} |\n", results.len()));
     md.push_str(&format!("| Passed | {} |\n", passed));
     md.push_str(&format!("| Failed | {} |\n", failed));

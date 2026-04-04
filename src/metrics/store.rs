@@ -13,6 +13,12 @@ pub struct MetricsStore {
     slos: RwLock<HashMap<String, MonitoringSlo>>,
 }
 
+impl Default for MetricsStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MetricsStore {
     pub fn new() -> Self {
         Self {
