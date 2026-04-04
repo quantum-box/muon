@@ -130,6 +130,7 @@ pub fn parse_markdown_scenario(input: &str) -> Result<TestScenario> {
         steps: all_steps,
         vars: fm.vars,
         config: merged_config,
+        webhooks: vec![],
     })
 }
 

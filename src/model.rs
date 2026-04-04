@@ -1,5 +1,6 @@
 //! TODO: add English documentation
 
+use crate::webhook::WebhookConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -22,6 +23,10 @@ pub struct TestScenario {
     /// TODO: add English documentation
     #[serde(default)]
     pub config: TestConfig,
+    /// Webhook notification endpoints triggered after test
+    /// execution.
+    #[serde(default)]
+    pub webhooks: Vec<WebhookConfig>,
 }
 
 /// A single step in a test scenario.

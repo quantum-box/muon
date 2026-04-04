@@ -6,7 +6,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use muon::{
     api_client::TachyonOpsClient,
     server::{self, state::AppState},
-    CiMetadata, DefaultTestRunner, TestConfigManager, TestResult,
+    webhook, CiMetadata, DefaultTestRunner, TestConfigManager, TestResult,
     TestRunReport, TestRunner, TestScenario,
 };
 use std::fs::{self, File};
@@ -71,6 +71,15 @@ struct Cli {
         global = true
     )]
     operator_id: Option<String>,
+
+    /// Path to a YAML file with webhook notification
+    /// configs.
+    #[arg(
+        long = "webhook-config",
+        env = "MUON_WEBHOOK_CONFIG",
+        global = true
+    )]
+    webhook_config: Option<String>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -498,6 +507,61 @@ fn open_browser(url: &str) -> Result<()> {
     Ok(())
 }
 
+/// Send webhook notifications from CLI config file and
+/// per-scenario webhook settings.
+async fn send_webhook_notifications(
+    config_path: Option<String>,
+    scenario_webhooks: &[webhook::WebhookConfig],
+    results: &[TestResult],
+    ci: Option<&CiMetadata>,
+) {
+    // Merge webhooks from CLI config file and from scenarios
+    let mut all_configs: Vec<webhook::WebhookConfig> =
+        scenario_webhooks.to_vec();
+
+    if let Some(path) = config_path {
+        match webhook::load_webhook_configs(Path::new(&path)) {
+            Ok(mut configs) => {
+                all_configs.append(&mut configs);
+            }
+            Err(e) => {
+                error!(
+                    "Failed to load webhook config \
+                     from {}: {}",
+                    path, e
+                );
+            }
+        }
+    }
+
+    if all_configs.is_empty() {
+        return;
+    }
+
+    info!(
+        "Sending webhook notifications ({} endpoint(s))...",
+        all_configs.len()
+    );
+
+    let sender = webhook::WebhookSender::new();
+    let delivery_results = sender.send_all(&all_configs, results, ci).await;
+
+    for dr in &delivery_results {
+        if dr.success {
+            info!(
+                "Webhook delivered to {} ({} attempt(s))",
+                dr.url_redacted, dr.attempts
+            );
+        } else {
+            error!(
+                "Webhook delivery failed to {}: {}",
+                dr.url_redacted,
+                dr.error.as_deref().unwrap_or("unknown")
+            );
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Cli::parse();
@@ -516,6 +580,11 @@ async fn main() -> Result<()> {
             // Default: run mode (backward compatible)
             let (_, scenarios) = prepare_config(args.test_path)?;
 
+            // Collect webhook configs from scenarios before
+            // they are consumed
+            let scenario_webhooks: Vec<webhook::WebhookConfig> =
+                scenarios.iter().flat_map(|s| s.webhooks.clone()).collect();
+
             let report_dir = args.report_dir.map(PathBuf::from);
 
             let total_start = Instant::now();
@@ -530,6 +599,16 @@ async fn main() -> Result<()> {
                 args.report_format,
             )
             .await?;
+
+            // Send webhook notifications
+            let ci_meta = detect_ci_metadata();
+            send_webhook_notifications(
+                args.webhook_config,
+                &scenario_webhooks,
+                &results,
+                ci_meta.as_ref(),
+            )
+            .await;
 
             // Submit report to Tachyon Ops API if
             // configured
