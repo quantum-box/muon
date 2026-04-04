@@ -36,12 +36,6 @@ export function ResponseViewer({ result, isStreaming = false }: ResponseViewerPr
 
   const visibleTabs = tabs.filter(t => t.show)
 
-  const bodyStr = result?.response.body ?? ''
-
-  const parsedJson = useMemo(() => {
-    try { return JSON.parse(bodyStr) } catch { return null }
-  }, [bodyStr])
-
   if (!result) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-slate-600 gap-2 p-8">
