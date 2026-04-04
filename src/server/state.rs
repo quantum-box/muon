@@ -1,6 +1,7 @@
 //! Shared application state for the muon web server.
 
 use crate::config::TestConfigManager;
+use crate::metrics::store::MetricsStore;
 use crate::model::{TestResult, TestScenario};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
@@ -23,6 +24,8 @@ pub struct AppState {
     /// Broadcast channel to notify clients of file
     /// changes.
     pub change_tx: broadcast::Sender<()>,
+    /// In-memory metrics and SLO store.
+    pub metrics_store: Arc<MetricsStore>,
 }
 
 impl AppState {
@@ -39,6 +42,7 @@ impl AppState {
             scenario_dir,
             config_manager,
             change_tx,
+            metrics_store: Arc::new(MetricsStore::new()),
         })
     }
 

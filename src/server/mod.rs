@@ -5,6 +5,8 @@
 //! The frontend is embedded into the binary via `rust-embed`.
 
 pub mod environments;
+pub mod hooks;
+pub mod metrics;
 pub mod routes;
 pub mod sse;
 pub mod state;
@@ -34,6 +36,8 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .nest("/api", routes::api_routes())
         .nest("/api", environments::env_routes())
         .nest("/api", validation::validation_routes())
+        .nest("/api", metrics::metrics_routes())
+        .nest("/api", hooks::hooks_routes())
         .with_state(state)
         .layer(cors)
         .fallback(static_handler)

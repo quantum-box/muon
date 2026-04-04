@@ -7,6 +7,7 @@ pub mod api_client;
 pub mod config;
 pub mod expression;
 pub mod markdown_parser;
+pub mod metrics;
 pub mod model;
 pub mod runn_parser;
 pub mod runner;
