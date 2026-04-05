@@ -90,7 +90,7 @@ enum Command {
     /// Start a local web server for the muon UI.
     Serve {
         /// Port to listen on.
-        #[arg(long, default_value = "9800")]
+        #[arg(long, default_value = "9800", env = "PORT")]
         port: u16,
         /// Scenario directory path.
         #[arg(long = "scenario-path")]
@@ -482,7 +482,7 @@ async fn start_serve(
     }
 
     let listener =
-        tokio::net::TcpListener::bind(format!("127.0.0.1:{port}")).await?;
+        tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
     axum::serve(listener, router).await?;
 
     Ok(())

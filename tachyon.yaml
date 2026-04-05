@@ -1,0 +1,12 @@
+apiVersion: apps.tachy.one/v1alpha
+kind: ComputeApp
+metadata:
+  name: muon-platform
+  tenantId: tn_01hjryxysgey07h5jz5wagqj0m
+spec:
+  envVars:
+    - name: DATABASE_URL
+      type: credential
+      value: ""
+    - name: RUST_LOG
+      value: info

@@ -1,0 +1,37 @@
+name: muon Platform Smoke Test
+description: Verify muon platform server is running and healthy after deployment
+tags:
+  - muon
+  - smoke
+  - self-test
+
+config:
+  base_url: https://muon-platform.txcloud.app
+  timeout: 15
+
+steps:
+  - id: health
+    name: Health endpoint returns OK
+    request:
+      method: GET
+      url: /health
+    expect:
+      status: 200
+      contains:
+        - "ok"
+
+  - id: list_scenarios
+    name: API scenarios endpoint is accessible
+    request:
+      method: GET
+      url: /api/scenarios
+    expect:
+      status: 200
+
+  - id: list_runs
+    name: API runs endpoint is accessible
+    request:
+      method: GET
+      url: /api/runs
+    expect:
+      status: 200
