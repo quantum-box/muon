@@ -15,6 +15,7 @@ pub mod watcher;
 
 use axum::http::{header, StatusCode};
 use axum::response::{Html, IntoResponse, Response};
+use axum::routing::get;
 use axum::Router;
 use rust_embed::Embed;
 use state::AppState;
@@ -33,6 +34,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .allow_headers(Any);
 
     Router::new()
+        .route("/health", get(health))
         .nest("/api", routes::api_routes())
         .nest("/api", environments::env_routes())
         .nest("/api", validation::validation_routes())
@@ -41,6 +43,10 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .with_state(state)
         .layer(cors)
         .fallback(static_handler)
+}
+
+async fn health() -> &'static str {
+    "ok"
 }
 
 async fn static_handler(uri: axum::http::Uri) -> impl IntoResponse {
