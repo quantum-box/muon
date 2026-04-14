@@ -82,6 +82,7 @@ pub fn parse_spec(
                     json_lengths: HashMap::new(),
                     schema: None,
                     contains: Vec::new(),
+                    not_contains: Vec::new(),
                     json_eq: None,
                     json_ignore_fields: Vec::new(),
                     sse: None,
@@ -103,6 +104,7 @@ pub fn parse_spec(
                 description: summary,
                 tags: vec!["openapi-import".to_string()],
                 steps: vec![step],
+                webhooks: Vec::new(),
                 vars: HashMap::new(),
                 config: TestConfig {
                     base_url: Some(base_url.to_string()),

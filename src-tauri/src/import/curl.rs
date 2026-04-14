@@ -131,6 +131,7 @@ pub fn parse_curl(input: &str) -> Result<TestStep> {
             json_lengths: HashMap::new(),
             schema: None,
             contains: Vec::new(),
+            not_contains: Vec::new(),
             json_eq: None,
             json_ignore_fields: Vec::new(),
             sse: None,

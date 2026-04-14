@@ -20,6 +20,7 @@ serde_json = "1"
 serde_yaml = "0.9"
 rusqlite = { version = "0.32", features = ["bundled"] }
 muon = { path = ".." }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
 tokio = { version = "1", features = ["full"] }
 anyhow = "1"
 
