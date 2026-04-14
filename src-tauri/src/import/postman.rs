@@ -147,6 +147,7 @@ pub fn parse_collection(
         description: collection.info.description.clone(),
         tags: vec!["postman-import".to_string()],
         steps,
+        webhooks: Vec::new(),
         vars,
         config: TestConfig::default(),
     };
@@ -233,6 +234,7 @@ fn convert_request(
             json_lengths: HashMap::new(),
             schema: None,
             contains: Vec::new(),
+            not_contains: Vec::new(),
             json_eq: None,
             json_ignore_fields: Vec::new(),
             sse: None,
