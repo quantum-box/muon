@@ -23,6 +23,12 @@ muon = { path = ".." }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
 tokio = { version = "1", features = ["full"] }
 anyhow = "1"
+# Pin to avoid zerocopy 0.8.x which uses AVX-512 intrinsics requiring
+# stdarch_x86_avx512 (nightly-only on stable Rust, causing E0658 on Windows).
+# ahash 0.8.12 bumped zerocopy to ^0.8; ppv-lite86 0.2.21 also requires ^0.8.
+# Pinning these older versions eliminates zerocopy 0.8.x from the dep tree.
+ahash = "=0.8.11"
+ppv-lite86 = "=0.2.20"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
