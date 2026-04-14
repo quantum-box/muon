@@ -3,6 +3,7 @@
 use crate::config::TestConfigManager;
 use crate::metrics::store::MetricsStore;
 use crate::model::{TestResult, TestScenario};
+use crate::queue::RedisQueue;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use std::collections::HashMap;
@@ -26,12 +27,31 @@ pub struct AppState {
     pub change_tx: broadcast::Sender<()>,
     /// In-memory metrics and SLO store.
     pub metrics_store: Arc<MetricsStore>,
+    /// Optional distributed job queue (Redis-backed with in-memory fallback).
+    pub queue: Arc<RedisQueue>,
 }
 
 impl AppState {
     /// Create a new `AppState` from the given scenario
     /// directory.
     pub fn new(scenario_dir: PathBuf) -> Arc<Self> {
+        Self::new_with_queue(scenario_dir, None)
+    }
+
+    /// Create a new `AppState` with an optional Redis queue URL.
+    pub fn new_with_queue(
+        scenario_dir: PathBuf,
+        queue_url: Option<String>,
+    ) -> Arc<Self> {
+        let queue = tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                let url = queue_url
+                    .as_deref()
+                    .unwrap_or("redis://127.0.0.1:6379");
+                Arc::new(RedisQueue::new(url, "muon-server").await)
+            })
+        });
+
         let (change_tx, _) = broadcast::channel(16);
         let mut config_manager = TestConfigManager::new();
         config_manager.test_paths = vec![scenario_dir.clone()];
@@ -43,6 +63,7 @@ impl AppState {
             config_manager,
             change_tx,
             metrics_store: Arc::new(MetricsStore::new()),
+            queue,
         })
     }
 
