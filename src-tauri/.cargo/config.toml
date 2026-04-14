@@ -1,0 +1,12 @@
+# Disable AVX-512 target features on Windows.
+# zerocopy 0.8.x conditionally emits code using core::arch::x86_64 AVX-512
+# intrinsics that are guarded by the `stdarch_x86_avx512` nightly feature.
+# On stable Rust the compiler rejects these with E0658 even when the target
+# does not actually support AVX-512, because cargo resolves the feature gate
+# before the cfg(target_feature) check takes effect.
+# Explicitly opting out of every AVX-512 sub-feature makes the cfg false and
+# keeps the offending code dead.
+[target.x86_64-pc-windows-msvc]
+rustflags = [
+    "-C", "target-feature=-avx512f,-avx512bw,-avx512cd,-avx512dq,-avx512vl",
+]
