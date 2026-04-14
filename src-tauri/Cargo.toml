@@ -26,3 +26,9 @@ anyhow = "1"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+
+# zerocopy 0.8.x uses core::arch AVX-512 intrinsics gated behind the
+# `stdarch_x86_avx512` nightly feature, causing E0658 on stable Rust.
+# Pin to 0.7.35 which predates the AVX-512 introduction.
+[patch.crates-io]
+zerocopy = { version = "=0.7.35" }
