@@ -1,0 +1,109 @@
+version: "3.9"
+
+# Simulates a 3-region distributed muon worker deployment.
+# Each worker service connects to the same Redis stream but
+# identifies itself with a different MUON_REGION label so that
+# job results carry the originating region.
+#
+# Usage:
+#   docker compose -f docker-compose.worker.yml up
+#   # Submit a job via the API:
+#   curl -X POST http://localhost:9800/api/jobs \
+#        -H "Content-Type: application/json" \
+#        -d '{"tenant_id":"demo","scenario_path":"/scenarios/sample.yaml","region":"ap-northeast-1"}'
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # muon server exposes the REST API for job submission / result retrieval
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command:
+      - muon
+      - serve
+      - --queue-url=redis://redis:6379
+      - --port=9800
+    ports:
+      - "9800:9800"
+    environment:
+      RUST_LOG: info
+      MUON_QUEUE_URL: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # Worker — ap-northeast-1 (Tokyo)
+  worker-ap-northeast-1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command:
+      - muon
+      - worker
+      - --queue-url=redis://redis:6379
+      - --region=ap-northeast-1
+      - --concurrency=4
+    environment:
+      RUST_LOG: info
+      MUON_QUEUE_URL: redis://redis:6379
+      MUON_REGION: ap-northeast-1
+      MUON_CONCURRENCY: "4"
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./tests/scenarios:/scenarios:ro
+
+  # Worker — us-east-1 (Virginia)
+  worker-us-east-1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command:
+      - muon
+      - worker
+      - --queue-url=redis://redis:6379
+      - --region=us-east-1
+      - --concurrency=4
+    environment:
+      RUST_LOG: info
+      MUON_QUEUE_URL: redis://redis:6379
+      MUON_REGION: us-east-1
+      MUON_CONCURRENCY: "4"
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./tests/scenarios:/scenarios:ro
+
+  # Worker — eu-west-1 (Ireland)
+  worker-eu-west-1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command:
+      - muon
+      - worker
+      - --queue-url=redis://redis:6379
+      - --region=eu-west-1
+      - --concurrency=4
+    environment:
+      RUST_LOG: info
+      MUON_QUEUE_URL: redis://redis:6379
+      MUON_REGION: eu-west-1
+      MUON_CONCURRENCY: "4"
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./tests/scenarios:/scenarios:ro

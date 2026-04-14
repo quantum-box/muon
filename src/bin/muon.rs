@@ -6,7 +6,9 @@ use clap::{Parser, Subcommand, ValueEnum};
 use muon::{
     api_client::TachyonOpsClient,
     server::{self, state::AppState},
-    webhook, CiMetadata, DefaultTestRunner, TestConfigManager, TestResult,
+    webhook,
+    worker::{Worker, WorkerConfig},
+    CiMetadata, DefaultTestRunner, TestConfigManager, TestResult,
     TestRunReport, TestRunner, TestScenario,
 };
 use std::fs::{self, File};
@@ -98,6 +100,28 @@ enum Command {
         /// Open browser automatically.
         #[arg(long)]
         open: bool,
+        /// Redis URL for the distributed job queue (optional).
+        #[arg(long = "queue-url", env = "MUON_QUEUE_URL")]
+        queue_url: Option<String>,
+    },
+    /// Start a distributed worker that consumes jobs from a queue.
+    Worker {
+        /// Redis URL for the job queue.
+        #[arg(
+            long = "queue-url",
+            default_value = "redis://127.0.0.1:6379",
+            env = "MUON_QUEUE_URL"
+        )]
+        queue_url: String,
+        /// Logical region label for this worker.
+        #[arg(long, default_value = "ap-northeast-1", env = "MUON_REGION")]
+        region: String,
+        /// Number of concurrent scenario executions.
+        #[arg(long, default_value = "4", env = "MUON_CONCURRENCY")]
+        concurrency: usize,
+        /// Tenant ID (optional).
+        #[arg(long, env = "MUON_TENANT_ID")]
+        tenant_id: Option<String>,
     },
 }
 
@@ -450,6 +474,7 @@ async fn start_serve(
     port: u16,
     scenario_path: Option<String>,
     open: bool,
+    queue_url: Option<String>,
 ) -> Result<()> {
     let scenario_dir = resolve_scenario_dir(scenario_path);
     if !scenario_dir.exists() {
@@ -459,7 +484,7 @@ async fn start_serve(
         ));
     }
 
-    let state = AppState::new(scenario_dir);
+    let state = AppState::new_with_queue(scenario_dir, queue_url);
 
     // Load initial scenarios
     state.reload_scenarios().await;
@@ -573,8 +598,24 @@ async fn main() -> Result<()> {
             port,
             scenario_path,
             open,
+            queue_url,
         }) => {
-            start_serve(port, scenario_path, open).await?;
+            start_serve(port, scenario_path, open, queue_url).await?;
+        }
+        Some(Command::Worker {
+            queue_url,
+            region,
+            concurrency,
+            tenant_id,
+        }) => {
+            let config = WorkerConfig {
+                queue_url,
+                region,
+                concurrency,
+                tenant_id,
+            };
+            let worker = Worker::new(config).await;
+            worker.run().await?;
         }
         Some(Command::Run) | None => {
             // Default: run mode (backward compatible)

@@ -6,6 +6,7 @@
 
 pub mod environments;
 pub mod hooks;
+pub mod jobs;
 pub mod metrics;
 pub mod routes;
 pub mod sse;
@@ -40,6 +41,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .nest("/api", validation::validation_routes())
         .nest("/api", metrics::metrics_routes())
         .nest("/api", hooks::hooks_routes())
+        .nest("/api", jobs::jobs_routes())
         .with_state(state)
         .layer(cors)
         .fallback(static_handler)
