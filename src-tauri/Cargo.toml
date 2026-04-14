@@ -1,3 +1,8 @@
+# Declare an independent workspace so Cargo does not try to merge this
+# crate into the parent tachyon-apps workspace when muon is checked out
+# as a submodule inside that monorepo.
+[workspace]
+
 [package]
 name = "muon-desktop"
 version = "0.3.1"
