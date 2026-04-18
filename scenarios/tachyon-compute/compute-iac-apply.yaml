@@ -1,0 +1,28 @@
+name: Compute IAC Apply (dry-run)
+description: Verify Compute API responds to dry-run equivalent GET for IAC apply monitoring
+tags:
+  - tachyon
+  - compute
+  - iac
+
+config:
+  base_url: https://api.n1.tachy.one
+  headers:
+    Authorization: "Bearer ${TACHYON_JWT}"
+    x-operator-id: "${OPERATOR_ID}"
+  timeout: 10
+
+webhooks:
+  - url: "${SLACK_WEBHOOK_URL}"
+    webhook_type: slack
+    notify_on: failure
+    name: "Tachyon Compute Monitor"
+
+steps:
+  - id: iac_dry_run
+    name: GET /v1/compute/apps as IAC apply dry-run equivalent
+    request:
+      method: GET
+      url: /v1/compute/apps
+    expect:
+      status: 200
