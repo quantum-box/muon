@@ -1,0 +1,26 @@
+name: Compute txcloud Proxy
+description: Verify bakuure.txcloud.app proxy is reachable and responds within 1 second
+tags:
+  - tachyon
+  - compute
+  - txcloud
+  - proxy
+
+config:
+  base_url: https://bakuure.txcloud.app
+  timeout: 1
+
+webhooks:
+  - url: "${SLACK_WEBHOOK_URL}"
+    webhook_type: slack
+    notify_on: failure
+    name: "Tachyon Compute Monitor"
+
+steps:
+  - id: proxy_health
+    name: GET bakuure.txcloud.app responds within 1 second
+    request:
+      method: GET
+      url: /
+    expect:
+      status: 200

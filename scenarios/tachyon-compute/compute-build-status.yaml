@@ -1,0 +1,45 @@
+name: Compute Build Status
+description: Verify latest build for first app has success or running status
+tags:
+  - tachyon
+  - compute
+  - builds
+
+config:
+  base_url: https://api.n1.tachy.one
+  headers:
+    Authorization: "Bearer ${TACHYON_JWT}"
+    x-operator-id: "${OPERATOR_ID}"
+  timeout: 10
+
+webhooks:
+  - url: "${SLACK_WEBHOOK_URL}"
+    webhook_type: slack
+    notify_on: failure
+    name: "Tachyon Compute Monitor"
+
+steps:
+  - id: list_apps
+    name: GET /v1/compute/apps to obtain first app_id
+    request:
+      method: GET
+      url: /v1/compute/apps
+    expect:
+      status: 200
+    test: |
+      current.res.status == 200
+      && size(current.res.body.apps) >= 1
+    bind:
+      app_id: "current.res.body.apps[0].id"
+
+  - id: list_builds
+    name: GET builds for first app and verify latest build status
+    request:
+      method: GET
+      url: /v1/apps/{{app_id}}/builds
+    expect:
+      status: 200
+    test: |
+      current.res.status == 200
+      && size(current.res.body.builds) >= 1
+      && (current.res.body.builds[0].status == "success" || current.res.body.builds[0].status == "running")

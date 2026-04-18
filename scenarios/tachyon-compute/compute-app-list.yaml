@@ -1,0 +1,31 @@
+name: Compute App List
+description: Verify Tachyon Compute app list endpoint returns apps array
+tags:
+  - tachyon
+  - compute
+  - apps
+
+config:
+  base_url: https://api.n1.tachy.one
+  headers:
+    Authorization: "Bearer ${TACHYON_JWT}"
+    x-operator-id: "${OPERATOR_ID}"
+  timeout: 10
+
+webhooks:
+  - url: "${SLACK_WEBHOOK_URL}"
+    webhook_type: slack
+    notify_on: failure
+    name: "Tachyon Compute Monitor"
+
+steps:
+  - id: list_apps
+    name: GET /v1/compute/apps returns 200 with apps array
+    request:
+      method: GET
+      url: /v1/compute/apps
+    expect:
+      status: 200
+    test: |
+      current.res.status == 200
+      && has(current.res.body.apps)
