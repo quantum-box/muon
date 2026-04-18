@@ -1,0 +1,98 @@
+name: Storage Upload Flow
+description: >
+  Verify R2 storage end-to-end: connection health → presigned PUT URL
+  generation → object upload → CDN delivery → cleanup.
+  Requires tachyon-api to reach Cloudflare R2 (STORAGE_* env vars set).
+tags:
+  - tachyon
+  - storage
+  - smoke
+
+config:
+  base_url: http://localhost:50154
+  headers:
+    Content-Type: application/json
+  timeout: 30
+
+steps:
+  - id: test_connection
+    name: Storage connection — verify R2 is reachable
+    request:
+      method: POST
+      url: /v1/storage/test-connection
+      body: {}
+    expect:
+      status: 200
+      json:
+        success: true
+    bind:
+      provider: "current.res.body.provider"
+      latency_ms: "current.res.body.latency_ms"
+
+  - id: upload_url
+    name: Generate presigned PUT URL
+    request:
+      method: POST
+      url: /v1/storage/upload-url
+      body:
+        content_type: "application/json"
+        extension: "json"
+        app_id: "muon-smoke"
+        tenant_id: "tn_01hjryxysgey07h5jz5wagqj0m"
+    expect:
+      status: 200
+    test: |
+      current.res.status == 200
+      && has(current.res.body.url)
+      && has(current.res.body.storage_key)
+    bind:
+      presigned_url: "current.res.body.url"
+      storage_key: "current.res.body.storage_key"
+
+  - id: put_object
+    name: Upload test object via presigned URL
+    request:
+      method: PUT
+      url: "{{steps.upload_url.presigned_url}}"
+      headers:
+        Content-Type: "application/json"
+      body:
+        muon: "smoke-test"
+    expect:
+      status: 200
+
+  - id: confirm_upload
+    name: Confirm upload metadata in R2
+    request:
+      method: POST
+      url: /v1/storage/confirm
+      body:
+        storage_key: "{{steps.upload_url.storage_key}}"
+    expect:
+      status: 200
+    test: |
+      current.res.status == 200
+      && has(current.res.body.url)
+      && current.res.body.content_length > 0
+
+  - id: cdn_delivery
+    name: Verify CDN delivery of uploaded object
+    request:
+      method: GET
+      url: "https://cdn.txcloud.app/{{steps.upload_url.storage_key}}"
+      headers:
+        Content-Type: ""
+    expect:
+      status: 200
+
+  - id: cleanup
+    name: Delete test object from R2
+    request:
+      method: POST
+      url: /v1/storage/delete
+      body:
+        storage_key: "{{steps.upload_url.storage_key}}"
+    expect:
+      status: 200
+    test: |
+      current.res.body.deleted == true
