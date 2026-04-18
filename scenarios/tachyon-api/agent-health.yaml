@@ -1,0 +1,22 @@
+name: Agent API Health Check
+description: Verify tachyon-api agent execution endpoint is reachable
+tags:
+  - tachyon
+  - agent
+  - health
+
+config:
+  base_url: https://api.n1.tachy.one
+  headers:
+    Authorization: "Bearer ${TACHYON_JWT}"
+    x-operator-id: "${OPERATOR_ID}"
+  timeout: 10
+
+steps:
+  - id: health
+    name: tachyon-api root responds
+    request:
+      method: GET
+      url: /
+    expect:
+      status: 200

@@ -1,0 +1,21 @@
+name: bakuure API Health Check
+description: Verify bakuure-api is running and responds to the root health endpoint
+tags:
+  - bakuure
+  - health
+  - smoke
+
+config:
+  base_url: https://bakuure.api.n1.tachy.one
+  timeout: 10
+
+steps:
+  - id: health
+    name: Root health endpoint returns OK
+    request:
+      method: GET
+      url: /
+    expect:
+      status: 200
+      contains:
+        - "OK"

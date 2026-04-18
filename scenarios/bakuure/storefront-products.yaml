@@ -1,0 +1,48 @@
+name: bakuure Storefront Products
+description: Verify the storefront products GraphQL query returns at least one product (SLO P95 500ms)
+tags:
+  - bakuure
+  - commerce
+  - storefront
+
+config:
+  base_url: https://bakuure.api.n1.tachy.one
+  headers:
+    Content-Type: application/json
+    x-operator-id: tn_01kkk6aav60anp20d5a8151ass
+  timeout: 30
+
+steps:
+  - id: list_storefront_products
+    name: storefrontProducts returns product list
+    request:
+      method: POST
+      url: /v1/graphql
+      body:
+        query: |
+          query StorefrontProducts($limit: Int, $offset: Int) {
+            storefrontProducts(limit: $limit, offset: $offset) {
+              items {
+                id
+                name
+                listPrice
+                kind
+                billingCycle
+              }
+              limit
+              offset
+            }
+          }
+        variables:
+          limit: 20
+          offset: 0
+    expect:
+      status: 200
+      contains:
+        - '"storefrontProducts"'
+        - '"items"'
+    test: |
+      current.res.status == 200
+      && has(current.res.body.data)
+      && has(current.res.body.data.storefrontProducts)
+      && size(current.res.body.data.storefrontProducts.items) >= 1
