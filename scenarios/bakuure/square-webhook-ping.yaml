@@ -1,0 +1,25 @@
+name: bakuure Square Webhook Endpoint Ping
+description: Verify the Square webhook endpoint exists by sending a request without a valid signature - expects 400/401 (signature verification error), not 404
+tags:
+  - bakuure
+  - square
+  - webhook
+  - health
+
+config:
+  base_url: https://api.n1.tachy.one
+  headers:
+    Content-Type: application/json
+  timeout: 15
+
+steps:
+  - id: webhook_ping
+    name: Square webhook endpoint responds with signature error (proves endpoint alive)
+    request:
+      method: POST
+      url: /v1/webhooks/square/tn_01kkk6aav60anp20d5a8151ass
+      body: {}
+    expect:
+      status: 401
+    test: |
+      current.res.status == 400 || current.res.status == 401

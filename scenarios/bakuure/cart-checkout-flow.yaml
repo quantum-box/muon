@@ -1,0 +1,96 @@
+name: bakuure Cart Flow
+description: Verify the cart commerce flow - product listing, cart creation, and item addition. Cart expires naturally; cancelOrder requires user auth not available in unauthenticated monitoring context.
+tags:
+  - bakuure
+  - commerce
+  - cart
+
+config:
+  base_url: https://bakuure.api.n1.tachy.one
+  headers:
+    Content-Type: application/json
+    x-operator-id: tn_01kkk6aav60anp20d5a8151ass
+  timeout: 30
+
+steps:
+  - id: get_product
+    name: Get a product ID from storefront
+    request:
+      method: POST
+      url: /v1/graphql
+      body:
+        query: |
+          query StorefrontProducts {
+            storefrontProducts(limit: 1, offset: 0) {
+              items {
+                id
+                name
+              }
+            }
+          }
+    expect:
+      status: 200
+      contains:
+        - '"storefrontProducts"'
+    test: |
+      current.res.status == 200
+      && size(current.res.body.data.storefrontProducts.items) >= 1
+    bind:
+      product_id: "current.res.body.data.storefrontProducts.items[0].id"
+
+  - id: create_cart
+    name: Create a new cart for monitoring test
+    request:
+      method: POST
+      url: /v1/graphql
+      body:
+        query: |
+          mutation CreateCart($input: CreateCartInput!) {
+            createCart(input: $input) {
+              id
+              status
+            }
+          }
+        variables:
+          input:
+            sessionId: "muon-monitoring-test"
+    expect:
+      status: 200
+      contains:
+        - '"createCart"'
+    test: |
+      current.res.status == 200
+      && has(current.res.body.data.createCart.id)
+    bind:
+      cart_id: "current.res.body.data.createCart.id"
+
+  - id: add_item
+    name: Add product to cart and verify cart state
+    request:
+      method: POST
+      url: /v1/graphql
+      body:
+        query: |
+          mutation AddCartItem($cartId: ID!, $input: AddCartItemInput!) {
+            addCartItem(cartId: $cartId, input: $input) {
+              id
+              status
+              items {
+                id
+                productId
+                quantity
+              }
+            }
+          }
+        variables:
+          cartId: "{{cart_id}}"
+          input:
+            productId: "{{product_id}}"
+            quantity: 1
+    expect:
+      status: 200
+      contains:
+        - '"addCartItem"'
+    test: |
+      current.res.status == 200
+      && has(current.res.body.data.addCartItem.id)
