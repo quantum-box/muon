@@ -1,0 +1,52 @@
+name: Agent SSE Streaming
+description: Execute agent and verify SSE event stream contains say and attempt_completion
+tags:
+  - tachyon
+  - agent
+  - sse
+
+config:
+  base_url: https://api.n1.tachy.one
+  headers:
+    Authorization: "Bearer ${TACHYON_JWT}"
+    x-operator-id: "${OPERATOR_ID}"
+    Content-Type: application/json
+  timeout: 120
+
+steps:
+  - id: create_chatroom
+    name: Create chatroom
+    request:
+      method: POST
+      url: /v1/llms/chatrooms
+      body:
+        name: "muon-sse-test"
+    expect:
+      status: 201
+    bind:
+      chatroom_id: "current.res.body.id"
+
+  - id: execute_agent
+    name: Execute agent and verify SSE stream
+    request:
+      method: POST
+      url: "/v1/llms/chatrooms/{{steps.create_chatroom.chatroom_id}}/agent/execute"
+      body:
+        task: "こんにちは。1+1を教えて。"
+    expect:
+      status: 200
+      headers:
+        Content-Type: "text/event-stream"
+      sse:
+        has_events:
+          - say
+          - attempt_completion
+        ends_with: attempt_completion
+
+  - id: cleanup
+    name: Delete chatroom
+    request:
+      method: DELETE
+      url: "/v1/llms/chatrooms/{{steps.create_chatroom.chatroom_id}}"
+    expect:
+      status: 200
