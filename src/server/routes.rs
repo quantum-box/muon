@@ -178,7 +178,7 @@ async fn list_runs(
 ) -> impl IntoResponse {
     let runs = state.runs.read().await;
     let mut records: Vec<&RunRecord> = runs.values().collect();
-    records.sort_by(|a, b| b.started_at.cmp(&a.started_at));
+    records.sort_by_key(|b| std::cmp::Reverse(b.started_at));
     Json(records.into_iter().cloned().collect::<Vec<_>>())
 }
 
