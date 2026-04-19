@@ -1,0 +1,63 @@
+name: Agent Session Continuity
+description: Verify agent remembers context across multiple turns in same chatroom
+tags: [tachyon, agent, session]
+
+config:
+  base_url: https://api.n1.tachy.one
+  headers:
+    Authorization: Bearer ${TACHYON_JWT}
+    x-operator-id: ${OPERATOR_ID}
+    Content-Type: application/json
+  timeout: 180
+
+steps:
+  - id: create_chatroom
+    name: Create chatroom
+    request:
+      method: POST
+      url: /v1/llms/chatrooms
+      body:
+        name: "muon-session-test"
+    expect:
+      status: 201
+    bind:
+      chatroom_id: "current.res.body.id"
+
+  - id: first_turn
+    name: First message - introduce keyword
+    request:
+      method: POST
+      url: "/v1/llms/chatrooms/{{steps.create_chatroom.chatroom_id}}/agent/execute"
+      body:
+        message: "私の好きな食べ物はリンゴです。覚えておいてください。"
+    expect:
+      status: 200
+      sse:
+        has_events: [say, attempt_completion]
+        ends_with: attempt_completion
+
+  - id: second_turn
+    name: Second message - verify memory
+    request:
+      method: POST
+      url: "/v1/llms/chatrooms/{{steps.create_chatroom.chatroom_id}}/agent/execute"
+      body:
+        message: "私の好きな食べ物は何ですか？"
+    expect:
+      status: 200
+      sse:
+        has_events: [say, attempt_completion]
+        ends_with: attempt_completion
+        # say イベントの data_contains でリンゴを確認したいが、
+        # muon の SSE 個別イベント data_contains はeventsリストで指定
+        events:
+          - event: say
+            data_contains: "リンゴ"
+
+  - id: cleanup
+    name: Delete chatroom
+    request:
+      method: DELETE
+      url: "/v1/llms/chatrooms/{{steps.create_chatroom.chatroom_id}}"
+    expect:
+      status: 200

@@ -1,0 +1,56 @@
+name: Agent Tool Execution Detection
+description: Verify agent emits tool_call events when client_tools are provided
+tags: [tachyon, agent, tool]
+
+config:
+  base_url: https://api.n1.tachy.one
+  headers:
+    Authorization: Bearer ${TACHYON_JWT}
+    x-operator-id: ${OPERATOR_ID}
+    Content-Type: application/json
+  timeout: 120
+
+steps:
+  - id: create_chatroom
+    name: Create chatroom
+    request:
+      method: POST
+      url: /v1/llms/chatrooms
+      body:
+        name: "muon-tool-test"
+    expect:
+      status: 201
+    bind:
+      chatroom_id: "current.res.body.id"
+
+  - id: execute_with_tools
+    name: Execute agent with client_tools - expect tool_call event
+    request:
+      method: POST
+      url: "/v1/llms/chatrooms/{{steps.create_chatroom.chatroom_id}}/agent/execute"
+      body:
+        message: "現在の気温を教えて。get_weather ツールを使って。"
+        client_tools:
+          - name: get_weather
+            description: "Get current weather for a location"
+            parameters:
+              type: object
+              properties:
+                location:
+                  type: string
+                  description: City name
+              required: [location]
+    expect:
+      status: 200
+      sse:
+        has_events:
+          - tool_call
+        # tool_call_pending が来れば agent がツール結果を待っている状態
+
+  - id: cleanup
+    name: Delete chatroom
+    request:
+      method: DELETE
+      url: "/v1/llms/chatrooms/{{steps.create_chatroom.chatroom_id}}"
+    expect:
+      status: 200

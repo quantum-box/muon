@@ -1,0 +1,44 @@
+name: Agent Chatroom CRUD
+description: Create/get/delete chatroom as prerequisite for agent test
+tags: [tachyon, agent, chatroom]
+
+config:
+  base_url: https://api.n1.tachy.one
+  headers:
+    Authorization: Bearer ${TACHYON_JWT}
+    x-operator-id: ${OPERATOR_ID}
+    Content-Type: application/json
+  timeout: 30
+
+steps:
+  - id: create_chatroom
+    name: Create chatroom for agent session
+    request:
+      method: POST
+      url: /v1/llms/chatrooms
+      body:
+        name: "muon-agent-test"
+    expect:
+      status: 201
+    test: |
+      current.res.status == 201 && has(current.res.body.id)
+    bind:
+      chatroom_id: "current.res.body.id"
+
+  - id: get_chatroom
+    name: Verify chatroom exists
+    request:
+      method: GET
+      url: "/v1/llms/chatrooms/{{steps.create_chatroom.chatroom_id}}"
+    expect:
+      status: 200
+      json:
+        name: "muon-agent-test"
+
+  - id: delete_chatroom
+    name: Cleanup chatroom
+    request:
+      method: DELETE
+      url: "/v1/llms/chatrooms/{{steps.create_chatroom.chatroom_id}}"
+    expect:
+      status: 200
