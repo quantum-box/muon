@@ -19,6 +19,10 @@ use std::time::Instant;
 use tracing::{debug, error, info};
 use tracing_subscriber::{fmt, EnvFilter};
 
+const DEFAULT_SERVE_PORT: u16 = 9800;
+const LAMBDA_ENV_VARS: [&str; 3] =
+    ["AWS_LAMBDA_FUNCTION_NAME", "LAMBDA_TASK_ROOT", "_HANDLER"];
+
 /// Tachyon Scenario Runner - YAML-based API test execution
 /// tool.
 #[derive(Parser, Debug)]
@@ -130,6 +134,58 @@ enum ReportFormat {
     Json,
     Yaml,
     Text,
+}
+
+fn detect_lambda_env_var_with<F>(exists: F) -> Option<&'static str>
+where
+    F: Fn(&str) -> bool,
+{
+    LAMBDA_ENV_VARS.iter().copied().find(|key| exists(key))
+}
+
+fn detected_lambda_env_var() -> Option<&'static str> {
+    detect_lambda_env_var_with(|key| std::env::var_os(key).is_some())
+}
+
+fn default_serve_port() -> u16 {
+    std::env::var("PORT")
+        .ok()
+        .and_then(|port| port.parse::<u16>().ok())
+        .unwrap_or(DEFAULT_SERVE_PORT)
+}
+
+fn default_serve_queue_url() -> Option<String> {
+    std::env::var("MUON_QUEUE_URL")
+        .ok()
+        .filter(|queue_url| !queue_url.is_empty())
+}
+
+fn resolve_command(command: Option<Command>) -> Command {
+    resolve_command_with_lambda_env(command, detected_lambda_env_var())
+}
+
+fn resolve_command_with_lambda_env(
+    command: Option<Command>,
+    lambda_env_var: Option<&'static str>,
+) -> Command {
+    if let Some(command) = command {
+        return command;
+    }
+
+    if let Some(lambda_env_var) = lambda_env_var {
+        info!(
+            lambda_env_var,
+            "Lambda environment detected; defaulting muon to serve mode"
+        );
+        return Command::Serve {
+            port: default_serve_port(),
+            scenario_path: None,
+            open: false,
+            queue_url: default_serve_queue_url(),
+        };
+    }
+
+    Command::Run
 }
 
 fn init_tracing(verbose: bool) {
@@ -593,21 +649,21 @@ async fn main() -> Result<()> {
 
     init_tracing(args.verbose);
 
-    match args.command {
-        Some(Command::Serve {
+    match resolve_command(args.command) {
+        Command::Serve {
             port,
             scenario_path,
             open,
             queue_url,
-        }) => {
+        } => {
             start_serve(port, scenario_path, open, queue_url).await?;
         }
-        Some(Command::Worker {
+        Command::Worker {
             queue_url,
             region,
             concurrency,
             tenant_id,
-        }) => {
+        } => {
             let config = WorkerConfig {
                 queue_url,
                 region,
@@ -617,7 +673,7 @@ async fn main() -> Result<()> {
             let worker = Worker::new(config).await;
             worker.run().await?;
         }
-        Some(Command::Run) | None => {
+        Command::Run => {
             // Default: run mode (backward compatible)
             let (_, scenarios) = prepare_config(args.test_path)?;
 
@@ -700,4 +756,60 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn detects_lambda_env_vars_by_priority() {
+        let detected = detect_lambda_env_var_with(|key| {
+            matches!(key, "LAMBDA_TASK_ROOT" | "_HANDLER")
+        });
+
+        assert_eq!(detected, Some("LAMBDA_TASK_ROOT"));
+    }
+
+    #[test]
+    fn ignores_non_lambda_env_vars() {
+        let detected =
+            detect_lambda_env_var_with(|key| key == "AWS_REGION");
+
+        assert_eq!(detected, None);
+    }
+
+    #[test]
+    fn defaults_to_serve_when_lambda_env_exists_without_command() {
+        let command = resolve_command_with_lambda_env(
+            None,
+            Some("AWS_LAMBDA_FUNCTION_NAME"),
+        );
+
+        assert!(matches!(
+            command,
+            Command::Serve {
+                open: false,
+                scenario_path: None,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn defaults_to_run_without_lambda_env() {
+        let command = resolve_command_with_lambda_env(None, None);
+
+        assert!(matches!(command, Command::Run));
+    }
+
+    #[test]
+    fn explicit_run_wins_over_lambda_default() {
+        let command = resolve_command_with_lambda_env(
+            Some(Command::Run),
+            Some("_HANDLER"),
+        );
+
+        assert!(matches!(command, Command::Run));
+    }
 }
