@@ -10,6 +10,7 @@ import {
   BookOpen,
   Keyboard,
   ArrowRight,
+  Send,
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { type Project, getProjects, openProjectDialog, addProject, tauriOpenProject, isTauri } from '../lib/tauri-api'
@@ -50,6 +51,13 @@ export function WelcomePage() {
 
   const quickActions = [
     {
+      icon: Send,
+      label: 'API Client',
+      description: 'Send requests with history, collections, and environments',
+      onClick: () => navigate('/request'),
+      color: 'blue',
+    },
+    {
       icon: FolderOpen,
       label: 'Open Project',
       description: 'Open an existing project folder',
@@ -68,7 +76,7 @@ export function WelcomePage() {
       label: 'Import Collection',
       description: 'Import from Postman, cURL, or OpenAPI',
       onClick: () => setImportOpen(true),
-      color: 'blue',
+      color: 'cyan',
     },
     {
       icon: Terminal,
@@ -83,6 +91,7 @@ export function WelcomePage() {
     violet: 'bg-violet-500/10 text-violet-400 group-hover:bg-violet-500/20',
     emerald: 'bg-emerald-500/10 text-emerald-400 group-hover:bg-emerald-500/20',
     blue: 'bg-blue-500/10 text-blue-400 group-hover:bg-blue-500/20',
+    cyan: 'bg-cyan-500/10 text-cyan-400 group-hover:bg-cyan-500/20',
     amber: 'bg-amber-500/10 text-amber-400 group-hover:bg-amber-500/20',
   }
 
@@ -100,7 +109,8 @@ export function WelcomePage() {
             Welcome to <span className="text-violet-400">muon</span>
           </h1>
           <p className="text-slate-400 text-lg max-w-md mx-auto">
-            Declarative API scenario testing, powered by YAML
+            A desktop API client and release gate runner for production-safe
+            scenario testing
           </p>
         </div>
 

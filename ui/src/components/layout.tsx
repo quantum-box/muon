@@ -142,7 +142,7 @@ function Header() {
             </span>
           </Link>
           <span className="ml-2 text-[10px] text-slate-600 font-mono">
-            API scenario runner
+            desktop API client
           </span>
         </div>
 

@@ -5,13 +5,16 @@ import {
 	ChevronDown,
 	Clock,
 	Copy,
+	Download,
 	Filter,
+	KeyRound,
 	Loader2,
 	RotateCcw,
 	Save,
 	Search,
 	Send,
 	Trash2,
+	Upload,
 	Wand2,
 	X,
 } from 'lucide-react'
@@ -52,9 +55,49 @@ import {
 
 type RequestTab = 'params' | 'headers' | 'body'
 type ResponseTab = 'pretty' | 'tree' | 'raw' | 'headers' | 'sse'
-type SidebarTab = 'history' | 'collections'
+type SidebarTab = 'history' | 'collections' | 'auth'
 type MethodFilter = HttpMethod | 'ALL'
 type DateFilter = 'all' | 'today' | 'week' | 'month'
+type AuthProfileType = 'bearer' | 'basic' | 'api_key'
+type ApiKeyPlacement = 'header' | 'query'
+
+type AuthProfile = {
+	id: string
+	name: string
+	type: AuthProfileType
+	token: string
+	username: string
+	password: string
+	keyName: string
+	keyValue: string
+	addTo: ApiKeyPlacement
+	createdAt: string
+	updatedAt: string
+}
+
+type MuonExportBundle = {
+	version: 1
+	exportedAt: string
+	savedRequests: SavedRequest[]
+	requestHistory: RequestHistoryEntry[]
+	authProfiles: AuthProfile[]
+}
+
+const AUTH_PROFILES_KEY = 'muon_auth_profiles'
+
+const emptyAuthProfileForm: Omit<
+	AuthProfile,
+	'id' | 'createdAt' | 'updatedAt'
+> = {
+	name: '',
+	type: 'bearer',
+	token: '',
+	username: '',
+	password: '',
+	keyName: 'Authorization',
+	keyValue: '',
+	addTo: 'header',
+}
 
 function cloneRequest(config: HttpRequestConfig): HttpRequestConfig {
 	return JSON.parse(JSON.stringify(config))
@@ -92,6 +135,119 @@ function isWithinDateFilter(timestamp: string, filter: DateFilter): boolean {
 	}
 }
 
+function enabledRecord(pairs: { key: string; value: string; enabled: boolean }[]) {
+	return pairs.filter(pair => pair.enabled && pair.key.trim())
+}
+
+function getAuthProfiles(): AuthProfile[] {
+	try {
+		const raw = localStorage.getItem(AUTH_PROFILES_KEY)
+		return raw ? (JSON.parse(raw) as AuthProfile[]) : []
+	} catch {
+		return []
+	}
+}
+
+function persistAuthProfiles(profiles: AuthProfile[]) {
+	localStorage.setItem(AUTH_PROFILES_KEY, JSON.stringify(profiles))
+}
+
+function upsertPair(
+	pairs: { key: string; value: string; enabled: boolean }[],
+	key: string,
+	value: string,
+) {
+	const next = pairs.map(pair => ({ ...pair }))
+	const existing = next.find(
+		pair => pair.key.toLowerCase() === key.toLowerCase(),
+	)
+	if (existing) {
+		existing.value = value
+		existing.enabled = true
+		return next
+	}
+	return [...next.filter(pair => pair.key || pair.value), { key, value, enabled: true }]
+}
+
+function applyAuthToConfig(
+	config: HttpRequestConfig,
+	profile: AuthProfile,
+): HttpRequestConfig {
+	if (profile.type === 'bearer' && profile.token) {
+		return {
+			...config,
+			headers: upsertPair(config.headers, 'Authorization', `Bearer ${profile.token}`),
+		}
+	}
+	if (profile.type === 'basic' && (profile.username || profile.password)) {
+		const token = btoa(`${profile.username}:${profile.password}`)
+		return {
+			...config,
+			headers: upsertPair(config.headers, 'Authorization', `Basic ${token}`),
+		}
+	}
+	if (profile.type === 'api_key' && profile.keyName && profile.keyValue) {
+		if (profile.addTo === 'query') {
+			return {
+				...config,
+				params: upsertPair(config.params, profile.keyName, profile.keyValue),
+			}
+		}
+		return {
+			...config,
+			headers: upsertPair(config.headers, profile.keyName, profile.keyValue),
+		}
+	}
+	return config
+}
+
+function buildUrlWithParams(config: HttpRequestConfig): string {
+	const params = enabledRecord(config.params)
+	if (params.length === 0) return config.url
+	const search = new URLSearchParams(
+		params.map(pair => [pair.key, pair.value]),
+	).toString()
+	const separator = config.url.includes('?') ? '&' : '?'
+	return `${config.url}${separator}${search}`
+}
+
+function shellQuote(value: string): string {
+	return `'${value.replace(/'/g, "'\\''")}'`
+}
+
+function buildCurlCommand(config: HttpRequestConfig): string {
+	const url = buildUrlWithParams(config)
+	const parts = ['curl', '-X', config.method, shellQuote(url)]
+	for (const header of enabledRecord(config.headers)) {
+		parts.push('-H', shellQuote(`${header.key}: ${header.value}`))
+	}
+	if (config.skipTlsVerify) {
+		parts.push('--insecure')
+	}
+	if (config.timeoutSecs > 0) {
+		parts.push('--max-time', String(config.timeoutSecs))
+	}
+	if (
+		config.bodyType !== 'none' &&
+		config.method !== 'GET' &&
+		config.method !== 'HEAD'
+	) {
+		const body =
+			config.bodyType === 'form'
+				? new URLSearchParams(
+						enabledRecord(config.formData).map(pair => [
+							pair.key,
+							pair.value,
+						]),
+					).toString()
+				: config.bodyContent
+		if (body) {
+			parts.push('--data-raw', shellQuote(body))
+		}
+	}
+	return parts.join(' ')
+}
+
 export function RequestBuilderPage() {
 	const navigate = useNavigate()
 	const { activeVariables, activeEnvironment } = useEnvironments()
@@ -104,13 +260,18 @@ export function RequestBuilderPage() {
 	const [requestTab, setRequestTab] = useState<RequestTab>('params')
 	const [responseTab, setResponseTab] = useState<ResponseTab>('pretty')
 	const [copied, setCopied] = useState(false)
+	const [curlCopied, setCurlCopied] = useState(false)
 	const [savedRequests, setSavedRequests] = useState<SavedRequest[]>(() =>
 		getSavedRequests(),
 	)
 	const [requestHistory, setRequestHistory] = useState<RequestHistoryEntry[]>(
 		() => getRequestHistory(),
 	)
-	const [showSidebar, setShowSidebar] = useState(false)
+	const [authProfiles, setAuthProfiles] = useState<AuthProfile[]>(() =>
+		getAuthProfiles(),
+	)
+	const [authForm, setAuthForm] = useState(emptyAuthProfileForm)
+	const [showSidebar, setShowSidebar] = useState(true)
 	const [sidebarTab, setSidebarTab] = useState<SidebarTab>('history')
 	const [showMethodDropdown, setShowMethodDropdown] = useState(false)
 	const [saveDialogOpen, setSaveDialogOpen] = useState(false)
@@ -119,6 +280,7 @@ export function RequestBuilderPage() {
 		useState<RequestHistoryEntry | null>(null)
 	const methodRef = useRef<HTMLDivElement>(null)
 	const urlInputRef = useRef<HTMLInputElement>(null)
+	const importInputRef = useRef<HTMLInputElement>(null)
 
 	// History filters
 	const [historySearch, setHistorySearch] = useState('')
@@ -231,6 +393,79 @@ export function RequestBuilderPage() {
 		setSavedRequests(getSavedRequests())
 	}
 
+	function handleSaveAuthProfile() {
+		if (!authForm.name.trim()) return
+		const now = new Date().toISOString()
+		const profile: AuthProfile = {
+			...authForm,
+			id: crypto.randomUUID(),
+			name: authForm.name.trim(),
+			createdAt: now,
+			updatedAt: now,
+		}
+		const next = [profile, ...authProfiles]
+		persistAuthProfiles(next)
+		setAuthProfiles(next)
+		setAuthForm(emptyAuthProfileForm)
+		setConfig(prev => applyAuthToConfig(prev, profile))
+	}
+
+	function handleApplyAuthProfile(profile: AuthProfile) {
+		setConfig(prev => applyAuthToConfig(prev, profile))
+	}
+
+	function handleDeleteAuthProfile(id: string) {
+		const next = authProfiles.filter(profile => profile.id !== id)
+		persistAuthProfiles(next)
+		setAuthProfiles(next)
+	}
+
+	function handleExportWorkspace() {
+		const bundle: MuonExportBundle = {
+			version: 1,
+			exportedAt: new Date().toISOString(),
+			savedRequests,
+			requestHistory,
+			authProfiles,
+		}
+		const blob = new Blob([JSON.stringify(bundle, null, 2)], {
+			type: 'application/json',
+		})
+		const url = URL.createObjectURL(blob)
+		const a = document.createElement('a')
+		a.href = url
+		a.download = `muon-workspace-${new Date().toISOString().slice(0, 10)}.json`
+		a.click()
+		URL.revokeObjectURL(url)
+	}
+
+	async function handleImportWorkspace(
+		event: React.ChangeEvent<HTMLInputElement>,
+	) {
+		const file = event.target.files?.[0]
+		if (!file) return
+		const text = await file.text()
+		const bundle = JSON.parse(text) as Partial<MuonExportBundle>
+		if (Array.isArray(bundle.savedRequests)) {
+			for (const saved of bundle.savedRequests) {
+				saveRequest(saved)
+			}
+			setSavedRequests(getSavedRequests())
+		}
+		if (Array.isArray(bundle.requestHistory)) {
+			localStorage.setItem(
+				'muon_request_history',
+				JSON.stringify(bundle.requestHistory),
+			)
+			setRequestHistory(getRequestHistory())
+		}
+		if (Array.isArray(bundle.authProfiles)) {
+			persistAuthProfiles(bundle.authProfiles)
+			setAuthProfiles(bundle.authProfiles)
+		}
+		event.target.value = ''
+	}
+
 	// History actions
 	function handleLoadFromHistory(entry: RequestHistoryEntry) {
 		setConfig(cloneRequest(entry.config))
@@ -291,6 +526,13 @@ export function RequestBuilderPage() {
 		navigator.clipboard.writeText(formatJson(response.body))
 		setCopied(true)
 		setTimeout(() => setCopied(false), 2000)
+	}
+
+	function handleCopyCurl() {
+		const expandedConfig = expandConfigVariables(config, activeVariables)
+		navigator.clipboard.writeText(buildCurlCommand(expandedConfig))
+		setCurlCopied(true)
+		setTimeout(() => setCurlCopied(false), 2000)
 	}
 
 	const bodyStr = response?.body ?? ''
@@ -431,6 +673,44 @@ export function RequestBuilderPage() {
 					<Save className='w-4 h-4' />
 				</button>
 
+				{/* Copy cURL button */}
+				<button
+					type='button'
+					onClick={handleCopyCurl}
+					className='px-2 py-1.5 rounded text-slate-400 hover:text-blue-400 hover:bg-slate-800 transition-colors'
+					title='Copy as cURL'
+				>
+					{curlCopied ? (
+						<Check className='w-4 h-4 text-emerald-400' />
+					) : (
+						<Copy className='w-4 h-4' />
+					)}
+				</button>
+
+				<input
+					ref={importInputRef}
+					type='file'
+					accept='application/json,.json'
+					className='hidden'
+					onChange={handleImportWorkspace}
+				/>
+				<button
+					type='button'
+					onClick={() => importInputRef.current?.click()}
+					className='px-2 py-1.5 rounded text-slate-400 hover:text-emerald-400 hover:bg-slate-800 transition-colors'
+					title='Import workspace JSON'
+				>
+					<Upload className='w-4 h-4' />
+				</button>
+				<button
+					type='button'
+					onClick={handleExportWorkspace}
+					className='px-2 py-1.5 rounded text-slate-400 hover:text-emerald-400 hover:bg-slate-800 transition-colors'
+					title='Export workspace JSON'
+				>
+					<Download className='w-4 h-4' />
+				</button>
+
 				{/* Generate Scenario button */}
 				<button
 					type='button'
@@ -504,6 +784,27 @@ export function RequestBuilderPage() {
 									</span>
 								)}
 								{sidebarTab === 'collections' && (
+									<div className='absolute bottom-0 left-0 right-0 h-0.5 bg-violet-500' />
+								)}
+							</button>
+							<button
+								type='button'
+								onClick={() => setSidebarTab('auth')}
+								className={cn(
+									'flex-1 px-3 py-2 text-xs font-medium transition-colors relative flex items-center justify-center gap-1.5',
+									sidebarTab === 'auth'
+										? 'text-violet-400'
+										: 'text-slate-500 hover:text-slate-300',
+								)}
+							>
+								<KeyRound className='w-3 h-3' />
+								Auth
+								{authProfiles.length > 0 && (
+									<span className='text-[10px] font-mono text-slate-600'>
+										{authProfiles.length}
+									</span>
+								)}
+								{sidebarTab === 'auth' && (
 									<div className='absolute bottom-0 left-0 right-0 h-0.5 bg-violet-500' />
 								)}
 							</button>
@@ -861,6 +1162,172 @@ export function RequestBuilderPage() {
 											>
 												<Trash2 className='w-3 h-3' />
 											</button>
+										</div>
+									))
+								)}
+							</div>
+						)}
+
+						{/* Auth panel */}
+						{sidebarTab === 'auth' && (
+							<div className='flex-1 overflow-auto p-3 space-y-3'>
+								<div className='space-y-2 rounded-md border border-slate-800 bg-slate-950/30 p-3'>
+									<input
+										type='text'
+										value={authForm.name}
+										onChange={e =>
+											setAuthForm(prev => ({
+												...prev,
+												name: e.target.value,
+											}))
+										}
+										placeholder='Profile name'
+										className='w-full bg-slate-800/50 border border-slate-700/50 rounded px-2 py-1.5 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-violet-500/50'
+									/>
+									<select
+										value={authForm.type}
+										onChange={e =>
+											setAuthForm(prev => ({
+												...prev,
+												type: e.target.value as AuthProfileType,
+											}))
+										}
+										className='w-full bg-slate-800/50 border border-slate-700/50 rounded px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-violet-500/50'
+									>
+										<option value='bearer'>Bearer token</option>
+										<option value='basic'>Basic auth</option>
+										<option value='api_key'>API key</option>
+									</select>
+									{authForm.type === 'bearer' && (
+										<input
+											type='password'
+											value={authForm.token}
+											onChange={e =>
+												setAuthForm(prev => ({
+													...prev,
+													token: e.target.value,
+												}))
+											}
+											placeholder='Token'
+											className='w-full bg-slate-800/50 border border-slate-700/50 rounded px-2 py-1.5 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-violet-500/50'
+										/>
+									)}
+									{authForm.type === 'basic' && (
+										<div className='grid grid-cols-2 gap-2'>
+											<input
+												type='text'
+												value={authForm.username}
+												onChange={e =>
+													setAuthForm(prev => ({
+														...prev,
+														username: e.target.value,
+													}))
+												}
+												placeholder='Username'
+												className='bg-slate-800/50 border border-slate-700/50 rounded px-2 py-1.5 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-violet-500/50'
+											/>
+											<input
+												type='password'
+												value={authForm.password}
+												onChange={e =>
+													setAuthForm(prev => ({
+														...prev,
+														password: e.target.value,
+													}))
+												}
+												placeholder='Password'
+												className='bg-slate-800/50 border border-slate-700/50 rounded px-2 py-1.5 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-violet-500/50'
+											/>
+										</div>
+									)}
+									{authForm.type === 'api_key' && (
+										<div className='space-y-2'>
+											<div className='grid grid-cols-2 gap-2'>
+												<input
+													type='text'
+													value={authForm.keyName}
+													onChange={e =>
+														setAuthForm(prev => ({
+															...prev,
+															keyName: e.target.value,
+														}))
+													}
+													placeholder='Key name'
+													className='bg-slate-800/50 border border-slate-700/50 rounded px-2 py-1.5 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-violet-500/50'
+												/>
+												<input
+													type='password'
+													value={authForm.keyValue}
+													onChange={e =>
+														setAuthForm(prev => ({
+															...prev,
+															keyValue: e.target.value,
+														}))
+													}
+													placeholder='Key value'
+													className='bg-slate-800/50 border border-slate-700/50 rounded px-2 py-1.5 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-violet-500/50'
+												/>
+											</div>
+											<select
+												value={authForm.addTo}
+												onChange={e =>
+													setAuthForm(prev => ({
+														...prev,
+														addTo: e.target.value as ApiKeyPlacement,
+													}))
+												}
+												className='w-full bg-slate-800/50 border border-slate-700/50 rounded px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-violet-500/50'
+											>
+												<option value='header'>Header</option>
+												<option value='query'>Query param</option>
+											</select>
+										</div>
+									)}
+									<button
+										type='button'
+										onClick={handleSaveAuthProfile}
+										className='w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded bg-violet-600 hover:bg-violet-500 text-white text-xs transition-colors'
+									>
+										<KeyRound className='w-3 h-3' />
+										Save & Apply
+									</button>
+								</div>
+
+								{authProfiles.length === 0 ? (
+									<div className='text-center text-xs text-slate-600 py-4'>
+										No auth profiles
+									</div>
+								) : (
+									authProfiles.map(profile => (
+										<div
+											key={profile.id}
+											className='group rounded-md border border-slate-800 px-3 py-2 hover:bg-slate-800/40'
+										>
+											<div className='flex items-center gap-2'>
+												<KeyRound className='w-3 h-3 text-violet-400' />
+												<div className='flex-1 min-w-0'>
+													<div className='truncate text-xs text-slate-300'>
+														{profile.name}
+													</div>
+													<div className='text-[10px] text-slate-600'>
+														{profile.type}
+													</div>
+												</div>
+												<button
+													type='button'
+													onClick={() => handleApplyAuthProfile(profile)}
+													className='text-[10px] text-violet-400 hover:text-violet-300'
+												>
+													Apply
+												</button>
+												<button
+													type='button'
+													onClick={() => handleDeleteAuthProfile(profile.id)}
+													className='opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-all p-1'
+												>
+													<Trash2 className='w-3 h-3' />
+												</button>
+											</div>
 										</div>
 									))
 								)}
