@@ -150,6 +150,7 @@ pub fn parse_collection(
         webhooks: Vec::new(),
         vars,
         config: TestConfig::default(),
+        ..Default::default()
     };
 
     Ok(vec![scenario])

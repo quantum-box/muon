@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// TODO: add English documentation
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TestScenario {
     /// TODO: add English documentation
     pub name: String,
@@ -27,6 +27,11 @@ pub struct TestScenario {
     /// execution.
     #[serde(default)]
     pub webhooks: Vec<WebhookConfig>,
+    /// When true and `vars.required_env` variables are missing,
+    /// the whole test run fails instead of silently skipping this
+    /// scenario.
+    #[serde(default)]
+    pub fail_on_missing_required_env: bool,
 }
 
 /// A single step in a test scenario.
