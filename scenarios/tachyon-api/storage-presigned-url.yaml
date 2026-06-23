@@ -1,0 +1,87 @@
+name: Tachyon API Storage Presigned URL MinIO Flow
+description: Verify presigned PUT and GET URLs against local MinIO.
+tags:
+  - tachyon
+  - storage
+  - infra
+
+config:
+  base_url: http://localhost:50050
+  timeout: 30
+
+vars:
+  tenant_id: tn_01hjryxysgey07h5jz5wagqj0m
+  user_id: us_01hs2yepy5hw4rz8pdq2wywnwt
+  object_key: tn_01hjryxysgey07h5jz5wagqj0m/uploads/files/plt-1939-presigned-url.txt
+  object_body: plt-1939-presigned-url-ok
+
+steps:
+  - id: create_put_presigned_url
+    name: Create a presigned PUT URL
+    request:
+      method: POST
+      url: /v1/storage/presigned-url
+      headers:
+        Authorization: Bearer dummy-token
+        x-operator-id: "{{ tenant_id }}"
+        x-user-id: "{{ user_id }}"
+        Content-Type: application/json
+      body:
+        key: "{{ object_key }}"
+        method: PUT
+        expires_in_secs: 300
+        content_type: application/json
+    expect:
+      status: 200
+      json:
+        expires_in_secs: 300
+    test: |
+      current.res.body.url.contains("localhost:9000") ||
+      current.res.body.url.contains("127.0.0.1:9000")
+    bind:
+      put_url: current.res.body.url
+
+  - id: upload_with_presigned_url
+    name: Upload the object through the presigned PUT URL
+    request:
+      method: PUT
+      url: "{{ put_url }}"
+      headers:
+        Content-Type: application/json
+      body: "{{ object_body }}"
+    expect:
+      status: 200
+
+  - id: create_get_presigned_url
+    name: Create a presigned GET URL
+    request:
+      method: POST
+      url: /v1/storage/presigned-url
+      headers:
+        Authorization: Bearer dummy-token
+        x-operator-id: "{{ tenant_id }}"
+        x-user-id: "{{ user_id }}"
+        Content-Type: application/json
+      body:
+        key: "{{ object_key }}"
+        method: GET
+        expires_in_secs: 300
+    expect:
+      status: 200
+      json:
+        expires_in_secs: 300
+    test: |
+      current.res.body.url.contains("localhost:9000") ||
+      current.res.body.url.contains("127.0.0.1:9000")
+    bind:
+      get_url: current.res.body.url
+
+  - id: download_with_presigned_url
+    name: Download the object through the presigned GET URL
+    request:
+      method: GET
+      url: "{{ get_url }}"
+    expect:
+      status: 200
+      contains:
+        - plt-1939-presigned-url-ok

@@ -86,6 +86,7 @@ mod tests {
                 continue_on_failure: false,
             },
             webhooks: vec![],
+            ..Default::default()
         };
 
         // TODO: add English comment

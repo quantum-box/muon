@@ -90,6 +90,7 @@ pub fn parse_runbook(yaml: &str) -> Result<TestScenario> {
         vars: runbook.vars,
         config,
         webhooks: vec![],
+        ..Default::default()
     })
 }
 

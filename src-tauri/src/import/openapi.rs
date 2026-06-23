@@ -112,6 +112,7 @@ pub fn parse_spec(
                     timeout: 30,
                     continue_on_failure: false,
                 },
+                ..Default::default()
             };
 
             scenarios.push(scenario);

@@ -222,6 +222,7 @@ impl ScenarioPayload {
             vars: self.vars,
             config: self.config,
             webhooks: self.webhooks,
+            ..Default::default()
         }
     }
 }
