@@ -86,6 +86,15 @@ struct Cli {
         global = true
     )]
     webhook_config: Option<String>,
+
+    /// Treat scenario parse failures as errors instead of
+    /// skipping the broken files with a warning.
+    #[arg(
+        long = "fail-on-parse-error",
+        env = "MUON_FAIL_ON_PARSE_ERROR",
+        global = true
+    )]
+    fail_on_parse_error: bool,
 }
 
 #[derive(Subcommand, Debug)]
@@ -332,8 +341,12 @@ fn save_test_report(
 
 fn prepare_config(
     test_path: Option<String>,
+    fail_on_parse_error: bool,
 ) -> Result<(TestConfigManager, Vec<TestScenario>)> {
     let mut config = TestConfigManager::new();
+    // Keep the env-var default from `TestConfigManager::new`
+    // and let the CLI flag additionally enable strict mode.
+    config.fail_on_parse_error |= fail_on_parse_error;
 
     let default_paths =
         ["tests/scenarios", "testcase/scenarios", "test/scenarios"];
@@ -675,7 +688,8 @@ async fn main() -> Result<()> {
         }
         Command::Run => {
             // Default: run mode (backward compatible)
-            let (_, scenarios) = prepare_config(args.test_path)?;
+            let (_, scenarios) =
+                prepare_config(args.test_path, args.fail_on_parse_error)?;
 
             // Collect webhook configs from scenarios before
             // they are consumed
