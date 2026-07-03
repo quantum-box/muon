@@ -4,13 +4,39 @@ use crate::model::TestScenario;
 use anyhow::{Context, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
+
+/// Environment variable that promotes scenario parse errors
+/// to hard failures (see
+/// [`TestConfigManager::fail_on_parse_error`]).
+pub const FAIL_ON_PARSE_ERROR_ENV: &str = "MUON_FAIL_ON_PARSE_ERROR";
+
+/// Read [`FAIL_ON_PARSE_ERROR_ENV`] and interpret it as a
+/// boolean (`1` / `true` / `yes`, case-insensitive).
+fn env_fail_on_parse_error() -> bool {
+    std::env::var(FAIL_ON_PARSE_ERROR_ENV)
+        .is_ok_and(|v| parse_bool_flag(&v))
+}
+
+/// Interpret an environment variable value as a boolean flag
+/// (`1` / `true` / `yes`, case-insensitive).
+fn parse_bool_flag(value: &str) -> bool {
+    matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "1" | "true" | "yes"
+    )
+}
 
 /// TODO: add English documentation
 #[derive(Debug)]
 pub struct TestConfigManager {
     /// TODO: add English documentation
     pub test_paths: Vec<PathBuf>,
+    /// When `true`, a scenario file that fails to parse aborts
+    /// loading with an error instead of being skipped with a
+    /// warning. Defaults to the `MUON_FAIL_ON_PARSE_ERROR`
+    /// environment variable.
+    pub fail_on_parse_error: bool,
 }
 
 impl TestConfigManager {
@@ -18,6 +44,7 @@ impl TestConfigManager {
     pub fn new() -> Self {
         Self {
             test_paths: vec![PathBuf::from("tests/scenarios")],
+            fail_on_parse_error: env_fail_on_parse_error(),
         }
     }
 
@@ -65,15 +92,32 @@ impl TestConfigManager {
         Ok(scenario)
     }
 
-    /// TODO: add English documentation
+    /// Load every scenario file found directly in `dir`.
+    ///
+    /// Files that fail to parse are skipped with a `warn!`
+    /// log unless [`Self::fail_on_parse_error`] is set, in
+    /// which case the first parse failure is returned as an
+    /// error.
     pub fn load_scenarios_from_dir<P: AsRef<Path>>(
         &self,
         dir: P,
     ) -> Result<Vec<TestScenario>> {
-        let dir = dir.as_ref();
+        let (scenarios, _skipped) =
+            self.load_scenarios_from_dir_counted(dir.as_ref())?;
+        Ok(scenarios)
+    }
+
+    /// Like [`Self::load_scenarios_from_dir`] but also returns
+    /// how many scenario files were skipped due to parse
+    /// errors.
+    fn load_scenarios_from_dir_counted(
+        &self,
+        dir: &Path,
+    ) -> Result<(Vec<TestScenario>, usize)> {
         info!("Loading test scenarios from directory: {}", dir.display());
 
         let mut scenarios = Vec::new();
+        let mut skipped = 0usize;
 
         for entry in fs::read_dir(dir).context(format!(
             "Failed to read directory: {}",
@@ -86,8 +130,58 @@ impl TestConfigManager {
                 match self.load_scenario(&path) {
                     Ok(scenario) => scenarios.push(scenario),
                     Err(err) => {
-                        debug!(
-                            "Failed to load scenario from {}: {}",
+                        if self.fail_on_parse_error {
+                            return Err(err.context(format!(
+                                "Failed to load scenario from {} \
+                                 ({FAIL_ON_PARSE_ERROR_ENV} is \
+                                 enabled)",
+                                path.display()
+                            )));
+                        }
+                        warn!(
+                            "Skipping scenario {}: {:#}",
+                            path.display(),
+                            err
+                        );
+                        skipped += 1;
+                    }
+                }
+            }
+        }
+
+        info!(
+            "Loaded {} test scenarios from {} / skipped {} \
+             (parse errors)",
+            scenarios.len(),
+            dir.display(),
+            skipped
+        );
+        Ok((scenarios, skipped))
+    }
+
+    /// Load scenarios from every registered test path.
+    ///
+    /// Directory-level and parse errors are skipped with a
+    /// `warn!` log unless [`Self::fail_on_parse_error`] is
+    /// set, in which case the first failure is returned as an
+    /// error.
+    pub fn load_all_scenarios(&self) -> Result<Vec<TestScenario>> {
+        let mut all_scenarios = Vec::new();
+        let mut total_skipped = 0usize;
+
+        for path in &self.test_paths {
+            if path.exists() && path.is_dir() {
+                match self.load_scenarios_from_dir_counted(path) {
+                    Ok((mut scenarios, skipped)) => {
+                        all_scenarios.append(&mut scenarios);
+                        total_skipped += skipped;
+                    }
+                    Err(err) => {
+                        if self.fail_on_parse_error {
+                            return Err(err);
+                        }
+                        warn!(
+                            "Failed to load scenarios from {}: {:#}",
                             path.display(),
                             err
                         );
@@ -97,35 +191,11 @@ impl TestConfigManager {
         }
 
         info!(
-            "Loaded {} test scenarios from {}",
-            scenarios.len(),
-            dir.display()
+            "Loaded {} test scenarios in total / skipped {} \
+             (parse errors)",
+            all_scenarios.len(),
+            total_skipped
         );
-        Ok(scenarios)
-    }
-
-    /// TODO: add English documentation
-    pub fn load_all_scenarios(&self) -> Result<Vec<TestScenario>> {
-        let mut all_scenarios = Vec::new();
-
-        for path in &self.test_paths {
-            if path.exists() && path.is_dir() {
-                match self.load_scenarios_from_dir(path) {
-                    Ok(mut scenarios) => {
-                        all_scenarios.append(&mut scenarios)
-                    }
-                    Err(err) => {
-                        debug!(
-                            "Failed to load scenarios from {}: {}",
-                            path.display(),
-                            err
-                        );
-                    }
-                }
-            }
-        }
-
-        info!("Loaded {} test scenarios in total", all_scenarios.len());
         Ok(all_scenarios)
     }
 }
@@ -245,6 +315,82 @@ mod tests {
         let mgr = TestConfigManager::new();
         let scenarios = mgr.load_scenarios_from_dir(dir.path()).unwrap();
         assert!(scenarios.is_empty(), "Plain .md should not be loaded");
+    }
+
+    #[test]
+    fn test_load_from_dir_skips_broken_scenarios_by_default() {
+        let dir = tempdir_with_files(&[
+            (
+                "ok.yaml",
+                "name: ok-test\nsteps:\n  - name: s\n    \
+                 request:\n      method: GET\n      url: /t\n    \
+                 expect:\n      status: 200\n",
+            ),
+            ("broken.yaml", "name: [unclosed\n"),
+            (
+                "broken.scenario.md",
+                "---\nname: broken-md\n---\n\n\
+                 ```yaml scenario\nsteps: [unclosed\n```\n",
+            ),
+        ]);
+
+        let mut mgr = TestConfigManager::new();
+        mgr.fail_on_parse_error = false;
+        let scenarios = mgr.load_scenarios_from_dir(dir.path()).unwrap();
+
+        assert_eq!(
+            scenarios.len(),
+            1,
+            "Broken scenarios should be skipped, valid ones kept"
+        );
+        assert_eq!(scenarios[0].name, "ok-test");
+    }
+
+    #[test]
+    fn test_load_from_dir_fails_on_parse_error_when_enabled() {
+        let dir =
+            tempdir_with_files(&[("broken.yaml", "name: [unclosed\n")]);
+
+        let mut mgr = TestConfigManager::new();
+        mgr.fail_on_parse_error = true;
+        let err = mgr
+            .load_scenarios_from_dir(dir.path())
+            .expect_err("parse error should abort loading");
+
+        let message = format!("{err:#}");
+        assert!(
+            message.contains("broken.yaml"),
+            "error should name the failing file: {message}"
+        );
+    }
+
+    #[test]
+    fn test_load_all_scenarios_fails_on_parse_error_when_enabled() {
+        let dir =
+            tempdir_with_files(&[("broken.yaml", "name: [unclosed\n")]);
+
+        let mut mgr = TestConfigManager::new();
+        mgr.test_paths = vec![dir.path().to_path_buf()];
+        mgr.fail_on_parse_error = true;
+        assert!(mgr.load_all_scenarios().is_err());
+
+        mgr.fail_on_parse_error = false;
+        let scenarios = mgr.load_all_scenarios().unwrap();
+        assert!(scenarios.is_empty());
+    }
+
+    // ── parse_bool_flag ─────────────────────────────────
+
+    #[test]
+    fn test_parse_bool_flag() {
+        assert!(parse_bool_flag("1"));
+        assert!(parse_bool_flag("true"));
+        assert!(parse_bool_flag("TRUE"));
+        assert!(parse_bool_flag(" yes "));
+        assert!(!parse_bool_flag("0"));
+        assert!(!parse_bool_flag("false"));
+        assert!(!parse_bool_flag(""));
+        assert!(!parse_bool_flag("enabled"));
     }
 
     // ── helper ──────────────────────────────────────────
