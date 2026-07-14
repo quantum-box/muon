@@ -23,10 +23,7 @@ pub fn get_by_json_path<'a>(
         let resolved = current.get(part).or_else(|| {
             part.parse::<usize>().ok().and_then(|idx| current.get(idx))
         });
-        match resolved {
-            Some(value) => current = value,
-            None => return None,
-        }
+        current = resolved?;
     }
 
     Some(current)

@@ -1,9 +1,9 @@
-name: Agent Tool Jobs API
-description: Create and manage async tool jobs
+name: Agent Coding Jobs API
+description: Create and manage async coding jobs
 tags:
   - tachyon
   - agent
-  - tool-jobs
+  - coding-jobs
 
 config:
   base_url: http://localhost:50154
@@ -15,17 +15,17 @@ config:
 
 steps:
   - id: list_providers
-    name: List available tool job providers
+    name: List available coding job providers
     request:
       method: GET
-      url: /v1/agent/tool-jobs/providers
+      url: /v1/agent/coding-jobs/providers
     expect:
       status: 200
 
   - id: list_jobs
-    name: List existing tool jobs
+    name: List existing coding jobs
     request:
       method: GET
-      url: /v1/agent/tool-jobs
+      url: /v1/agent/coding-jobs
     expect:
       status: 200

@@ -287,7 +287,7 @@ async fn deploy_complete(
                 let run_id = uuid::Uuid::new_v4().to_string();
                 let run_record = RunRecord {
                     id: run_id.clone(),
-                    scenario_id: format!("hook-{}", hook_run_id),
+                    scenario_id: format!("hook-{hook_run_id}"),
                     scenario_name: scenario.name.clone(),
                     result: None,
                     started_at: Utc::now(),
@@ -835,9 +835,9 @@ fn build_check_run_summary(
     md.push_str(&format!("**Deploy URL:** {deploy_url}\n\n"));
     md.push_str("| Metric | Value |\n|--------|-------|\n");
     md.push_str(&format!("| Total scenarios | {} |\n", results.len()));
-    md.push_str(&format!("| Passed | {} |\n", passed));
-    md.push_str(&format!("| Failed | {} |\n", failed));
-    md.push_str(&format!("| Total duration | {} ms |\n\n", total_duration));
+    md.push_str(&format!("| Passed | {passed} |\n"));
+    md.push_str(&format!("| Failed | {failed} |\n"));
+    md.push_str(&format!("| Total duration | {total_duration} ms |\n\n"));
 
     md.push_str("### Scenario Details\n\n");
     md.push_str(
