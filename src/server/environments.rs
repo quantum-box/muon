@@ -87,7 +87,7 @@ async fn get_environment(
     State(state): State<Arc<AppState>>,
     Path(name): Path<String>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let path = env_dir(&state).join(format!("{}.yaml", name));
+    let path = env_dir(&state).join(format!("{name}.yaml"));
     let content = std::fs::read_to_string(&path)
         .map_err(|_| StatusCode::NOT_FOUND)?;
     let env: EnvironmentFile =
@@ -122,7 +122,7 @@ async fn save_environment(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    let path = dir.join(format!("{}.yaml", name));
+    let path = dir.join(format!("{name}.yaml"));
     let is_new = !path.exists();
 
     std::fs::write(&path, &yaml).map_err(|e| {
@@ -143,7 +143,7 @@ async fn delete_environment(
     State(state): State<Arc<AppState>>,
     Path(name): Path<String>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let path = env_dir(&state).join(format!("{}.yaml", name));
+    let path = env_dir(&state).join(format!("{name}.yaml"));
 
     if !path.exists() {
         return Err(StatusCode::NOT_FOUND);

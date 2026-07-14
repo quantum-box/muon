@@ -235,7 +235,7 @@ impl RedisQueue {
     /// Retrieve a job result by ID.
     pub async fn get_result(&self, job_id: &str) -> Option<JobResult> {
         if let Some(conn) = &mut *self.connection.lock().await {
-            let results_key = format!("{}{}", RESULTS_KEY_PREFIX, job_id);
+            let results_key = format!("{RESULTS_KEY_PREFIX}{job_id}");
             let result: redis::RedisResult<String> =
                 conn.get(&results_key).await;
             match result {
