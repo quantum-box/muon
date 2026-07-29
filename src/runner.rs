@@ -10,9 +10,20 @@ use reqwest::{Client, Method as ReqMethod, Response};
 use serde::Serialize;
 use serde_json::{Map, Number, Value};
 use std::collections::HashMap;
+use std::sync::LazyLock;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, instrument, warn};
+
+static PLACEHOLDER_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\{\{\s*(?:vars\.)?(.+?)\s*\}\}")
+        .expect("failed to compile placeholder regex")
+});
+
+static EXACT_PLACEHOLDER_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^\{\{\s*(?:vars\.)?(.+?)\s*\}\}$")
+        .expect("failed to compile exact placeholder regex")
+});
 
 /// Events emitted during scenario execution for real-time
 /// streaming to connected clients.
@@ -310,18 +321,9 @@ impl DefaultTestRunner {
         text: &str,
         vars: &HashMap<String, Value>,
     ) -> String {
-        use std::sync::LazyLock;
-
-        // Single regex that matches {{ key }} or {{ vars.key }}
-        // and captures the key name (group 1).
-        static PLACEHOLDER_RE: LazyLock<Regex> = LazyLock::new(|| {
-            Regex::new(r"\{\{\s*(?:vars\.)?(.+?)\s*\}\}")
-                .expect("failed to compile placeholder regex")
-        });
-
         PLACEHOLDER_RE
             .replace_all(text, |caps: &regex::Captures| {
-                let key = &caps[1];
+                let key = caps[1].trim();
                 match vars.get(key) {
                     Some(Value::String(s)) => s.clone(),
                     Some(v) => v.to_string(),
@@ -329,6 +331,105 @@ impl DefaultTestRunner {
                 }
             })
             .into_owned()
+    }
+
+    /// Expand placeholders in an `expect.json` value while preserving
+    /// the JSON type of exact-placeholder values.
+    fn expand_json_expectation(
+        expected: &Value,
+        vars: &HashMap<String, Value>,
+        expectation_path: &str,
+    ) -> Result<Value> {
+        match expected {
+            Value::String(text) => {
+                if let Some(captures) = EXACT_PLACEHOLDER_RE.captures(text)
+                {
+                    let key = captures[1].trim();
+                    return vars.get(key).cloned().ok_or_else(|| {
+                        anyhow!(
+                            "expect.json placeholder could not be resolved: \
+                             variable '{key}' was not found at \
+                             '{expectation_path}'"
+                        )
+                    });
+                }
+
+                let mut expansion_error = None;
+                let expanded = PLACEHOLDER_RE.replace_all(
+                    text,
+                    |captures: &regex::Captures| {
+                        let key = captures[1].trim();
+                        match vars.get(key) {
+                            Some(Value::String(value)) => value.clone(),
+                            Some(
+                                value @ (Value::Null
+                                | Value::Bool(_)
+                                | Value::Number(_)),
+                            ) => value.to_string(),
+                            Some(Value::Array(_) | Value::Object(_)) => {
+                                expansion_error = Some(anyhow!(
+                                    "expect.json placeholder could not be \
+                                     expanded: variable '{key}' is not a \
+                                     scalar and cannot be embedded in a \
+                                     string at '{expectation_path}'"
+                                ));
+                                captures[0].to_string()
+                            }
+                            None => {
+                                expansion_error = Some(anyhow!(
+                                    "expect.json placeholder could not be \
+                                     resolved: variable '{key}' was not \
+                                     found at '{expectation_path}'"
+                                ));
+                                captures[0].to_string()
+                            }
+                        }
+                    },
+                );
+
+                if let Some(error) = expansion_error {
+                    return Err(error);
+                }
+
+                Ok(Value::String(expanded.into_owned()))
+            }
+            Value::Array(values) => values
+                .iter()
+                .enumerate()
+                .map(|(index, value)| {
+                    Self::expand_json_expectation(
+                        value,
+                        vars,
+                        &format!("{expectation_path}[{index}]"),
+                    )
+                })
+                .collect(),
+            Value::Object(values) => values
+                .iter()
+                .map(|(key, value)| {
+                    Self::expand_json_expectation(
+                        value,
+                        vars,
+                        &format!("{expectation_path}.{key}"),
+                    )
+                    .map(|expanded| (key.clone(), expanded))
+                })
+                .collect(),
+            value => Ok(value.clone()),
+        }
+    }
+
+    fn contains_placeholder(value: &Value) -> bool {
+        match value {
+            Value::String(text) => PLACEHOLDER_RE.is_match(text),
+            Value::Array(values) => {
+                values.iter().any(Self::contains_placeholder)
+            }
+            Value::Object(values) => {
+                values.values().any(Self::contains_placeholder)
+            }
+            _ => false,
+        }
     }
 
     /// TODO: add English documentation
@@ -760,16 +861,35 @@ impl DefaultTestRunner {
         {
             if let Some(json_body) = &parsed_json {
                 for (path, expected) in &step.expect.json {
+                    let contains_placeholder =
+                        Self::contains_placeholder(expected);
+                    let expanded_expected =
+                        Self::expand_json_expectation(expected, vars, path)
+                            .map_err(|error| {
+                                anyhow!(
+                            "Invalid expect.json expectation in step \
+                                     '{}': {error}",
+                            step.name
+                        )
+                            })?;
+
                     match Self::get_value_by_path(json_body, path) {
                         Some(actual) => {
-                            if actual != expected {
+                            if actual != &expanded_expected {
                                 step_success = false;
-                                step_error = Some(format!(
-                                    "JSONパス '{path}' の値が\
-                                     期待値と一致しません。\
-                                     期待: {expected:?}, \
-                                     実際: {actual:?}"
-                                ));
+                                step_error = if contains_placeholder {
+                                    Some(format!(
+                                        "JSONパス '{path}' の値が\
+                                         展開済みの期待値と一致しません"
+                                    ))
+                                } else {
+                                    Some(format!(
+                                        "JSONパス '{path}' の値が\
+                                         期待値と一致しません。\
+                                         期待: {expected:?}, \
+                                         実際: {actual:?}"
+                                    ))
+                                };
                             }
                         }
                         None => {

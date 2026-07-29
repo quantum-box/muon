@@ -298,7 +298,7 @@ function StatusBar() {
         </div>
       )}
       <div className="flex-1" />
-      <div>muon v0.3.1</div>
+      <div>muon v0.3.2</div>
     </div>
   )
 }
