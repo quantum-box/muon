@@ -1,0 +1,31 @@
+name: JSON variable expansion success scenario
+description: Verify expect.json expands variables without losing JSON types
+
+config:
+  base_url: __BASE_URL__
+
+vars:
+  timestamp: 1785316912
+  count: 42
+  enabled: true
+  nullable: null
+  metadata:
+    kind: typed
+  items:
+    - item-1
+    - item-2
+
+steps:
+  - name: JSON変数を型付きで展開できることを検証
+    request:
+      method: GET
+      url: /expectation-types
+    expect:
+      status: 200
+      json:
+        data.name: "provider-{{vars.timestamp}}"
+        data.count: "{{vars.count}}"
+        data.enabled: "{{vars.enabled}}"
+        data.nullable: "{{vars.nullable}}"
+        data.metadata: "{{vars.metadata}}"
+        data.items: "{{vars.items}}"

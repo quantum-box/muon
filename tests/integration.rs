@@ -123,6 +123,23 @@ impl TestServer {
                 }),
             )
             .route(
+                "/expectation-types",
+                get(|| async move {
+                    Json(json!({
+                        "data": {
+                            "name": "provider-1785316912",
+                            "count": 42,
+                            "enabled": true,
+                            "nullable": null,
+                            "metadata": {
+                                "kind": "typed"
+                            },
+                            "items": ["item-1", "item-2"]
+                        }
+                    }))
+                }),
+            )
+            .route(
                 "/sse/completion",
                 get(|| async move {
                     let events = vec![
@@ -396,6 +413,60 @@ async fn json_match_succeeds_for_exact_values() {
     );
 
     server.shutdown().await;
+}
+
+#[tokio::test]
+async fn json_match_expands_variables_without_losing_types() {
+    let server = TestServer::spawn().await;
+    let scenario = load_scenario(
+        "json_variable_expansion_success.yaml",
+        &server.base_url,
+    );
+    let runner = DefaultTestRunner::new();
+
+    let result = runner
+        .run(&scenario)
+        .await
+        .expect("runner returned error for variable expansion");
+
+    assert!(
+        result.success,
+        "scenario should succeed: {:?}",
+        result.error
+    );
+
+    server.shutdown().await;
+}
+
+#[tokio::test]
+async fn json_match_fails_loudly_for_unresolved_placeholders() {
+    let server = TestServer::spawn().await;
+    let scenario = load_scenario(
+        "json_variable_unresolved_failure.yaml",
+        &server.base_url,
+    );
+    let runner = DefaultTestRunner::new();
+
+    let error = runner
+        .run(&scenario)
+        .await
+        .expect_err("unresolved placeholder should return an error");
+
+    server.shutdown().await;
+
+    let message = error.to_string();
+    assert!(
+        message.contains("expect.json placeholder could not be resolved"),
+        "error should explain the failure reason: {message}"
+    );
+    assert!(
+        message.contains("missing_name"),
+        "error should identify the missing variable: {message}"
+    );
+    assert!(
+        !message.contains("should-never-appear-in-errors"),
+        "error must not expose variable values: {message}"
+    );
 }
 
 #[tokio::test]

@@ -1,0 +1,18 @@
+name: JSON unresolved variable failure scenario
+description: Verify unresolved expect.json placeholders fail loudly
+
+config:
+  base_url: __BASE_URL__
+
+vars:
+  unrelated_secret: should-never-appear-in-errors
+
+steps:
+  - name: 未解決JSON変数で明示的に失敗することを検証
+    request:
+      method: GET
+      url: /expectation-types
+    expect:
+      status: 200
+      json:
+        data.name: "{{vars.missing_name}}"
