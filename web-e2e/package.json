@@ -3,21 +3,12 @@
   "version": "0.1.0",
   "description": "Declarative YAML-based web E2E testing for muon, executed by Playwright",
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./src/index.ts",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    }
+    ".": "./src/index.ts"
   },
-  "files": [
-    "dist",
-    "README.md"
-  ],
   "license": "MIT",
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
     "ts": "tsc --noEmit",
     "test": "vitest run",
     "test:browser": "vitest run --config vitest.browser.config.ts"
