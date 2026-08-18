@@ -5,3 +5,7 @@ Cargo.lock
 ui/node_modules
 ui/dist
 ui/*.tsbuildinfo
+
+# Web E2E package
+web-e2e/node_modules
+web-e2e/*.tsbuildinfo

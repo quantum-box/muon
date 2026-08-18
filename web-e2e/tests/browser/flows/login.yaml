@@ -1,0 +1,38 @@
+# Fixture flow exercising most commands end to end.
+url: ${FIXTURE_URL}
+name: fixture login flow
+tags: [fixture]
+env:
+  EMAIL: e2e@example.com
+---
+- launchApp
+- assertVisible: 'Fixture Login'
+- assertTitle: /Fixture/
+- assertUrl: app.html
+- tapOn:
+    id: email
+- inputText: ${EMAIL}
+- tapOn:
+    role: button
+    name: 'Sign in'
+- assertVisible: 'Welcome e2e@example.com'
+- assertNotVisible: 'Error'
+- copyTextFrom:
+    id: welcome
+- tapOn:
+    text: 'No such button'
+    optional: true
+    timeout: 300
+- runFlow: _shared/count-up.yaml
+- repeat:
+    times: 2
+    commands:
+      - tapOn:
+          id: count-button
+- assertVisible: 'Count: 3'
+- eraseText:
+    id: email
+- inputText:
+    text: ${maestro.copiedText}
+    id: email
+- takeScreenshot: done

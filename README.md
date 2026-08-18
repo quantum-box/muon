@@ -13,6 +13,7 @@ Declarative API scenario testing framework written in Rust. Supports both YAML a
 - **Multi-format reporting** - JSON, YAML, and text output formats
 - **CI integration** - GitHub Action for easy CI/CD pipeline integration
 - **Result reporting** - Optional integration with Tachyon Ops API
+- **Web E2E flows** - Browser end-to-end tests in YAML via the `web-e2e` package
 
 ## Installation
 
@@ -282,6 +283,35 @@ async fn run_api_scenarios() -> anyhow::Result<()> {
     Ok(())
 }
 ```
+
+## Web E2E testing
+
+Browser end-to-end tests live in the [`web-e2e`](./web-e2e) package. Flows are
+written in YAML and executed by Playwright, extending muon's declarative
+approach from API scenarios to web UI.
+
+```yaml
+# flows/sign-in.yaml
+url: /sign_in
+name: user can sign in
+---
+- launchApp
+- tapOn:
+    role: textbox
+    name: 'Email'
+- inputText: ${EMAIL}
+- tapOn:
+    role: button
+    name: 'Sign in'
+- assertVisible: 'Welcome'
+```
+
+The flow syntax follows [Maestro](https://maestro.mobile.dev/)'s command style
+(`tapOn`, `inputText`, `assertVisible`). Maestro is a trademark of Mobile Dev
+Inc.; this package is not an official Maestro product.
+
+See [`web-e2e/README.md`](./web-e2e/README.md) for the full command and
+selector reference.
 
 ## License
 

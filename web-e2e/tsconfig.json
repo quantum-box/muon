@@ -1,0 +1,17 @@
+{
+  "include": ["src", "tests", "vitest.config.ts", "vitest.browser.config.ts"],
+  "exclude": ["node_modules"],
+  "compilerOptions": {
+    "lib": ["ES2022", "dom"],
+    "module": "ESNext",
+    "target": "ES2022",
+    "moduleResolution": "bundler",
+    "types": ["node"],
+    "strict": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  }
+}

@@ -1,0 +1,5 @@
+# Subflow fragment used via runFlow; the leading underscore keeps it from
+# being registered as a standalone test.
+---
+- tapOn:
+    id: count-button
