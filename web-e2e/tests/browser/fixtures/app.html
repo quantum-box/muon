@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>Fixture App</title>
+	</head>
+	<body>
+		<h1>Fixture Login</h1>
+		<label>Email <input data-testid="email" type="email" /></label>
+		<button type="button" data-testid="signin" onclick="signIn()">
+			Sign in
+		</button>
+		<button type="button" data-testid="count-button" onclick="countUp()">
+			Count up
+		</button>
+		<p data-testid="count">Count: 0</p>
+		<div id="out"></div>
+		<script>
+			let count = 0
+			function countUp() {
+				count += 1
+				document.querySelector('[data-testid=count]').textContent =
+					'Count: ' + count
+			}
+			function signIn() {
+				const email = document.querySelector('[data-testid=email]').value
+				const p = document.createElement('p')
+				p.setAttribute('data-testid', 'welcome')
+				p.textContent = 'Welcome ' + email
+				document.getElementById('out').append(p)
+			}
+		</script>
+	</body>
+</html>
