@@ -1,9 +1,9 @@
 import path from 'node:path'
 import type { Page } from '@playwright/test'
-import { loadFlowFile } from './files'
-import { deepInterpolate, interpolate } from './interpolate'
-import { describeSelector, resolveLocator, toTextMatch } from './selector'
-import { type Flow, type FlowConfig, FlowError, type Step } from './types'
+import { loadFlowFile } from './files.js'
+import { deepInterpolate, interpolate } from './interpolate.js'
+import { describeSelector, resolveLocator, toTextMatch } from './selector.js'
+import { type Flow, type FlowConfig, FlowError, type Step } from './types.js'
 
 /** Variable holding the last `copyTextFrom` result, like Maestro. */
 export const COPIED_TEXT_VAR = 'maestro.copiedText'

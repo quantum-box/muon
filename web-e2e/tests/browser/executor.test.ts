@@ -2,7 +2,7 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { type Browser, type Page, chromium } from '@playwright/test'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
-import { loadFlowFile, parseFlow, runFlow } from '../../src'
+import { loadFlowFile, parseFlow, runFlow } from '../../src/index.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const fixtureUrl = pathToFileURL(path.join(here, 'fixtures', 'app.html')).href

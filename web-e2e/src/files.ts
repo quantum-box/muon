@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
-import { parseFlow } from './parse'
-import { type Flow, FlowError } from './types'
+import { parseFlow } from './parse.js'
+import { type Flow, FlowError } from './types.js'
 
 const FLOW_EXTENSIONS = new Set(['.yaml', '.yml'])
 

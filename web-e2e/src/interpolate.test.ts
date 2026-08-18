@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { deepInterpolate, interpolate } from './interpolate'
+import { deepInterpolate, interpolate } from './interpolate.js'
 
 describe('interpolate', () => {
 	it('replaces variables', () => {

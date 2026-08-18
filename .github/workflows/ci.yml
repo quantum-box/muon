@@ -124,6 +124,8 @@ jobs:
       - run: npm ci
       - name: Type check
         run: npm run ts
+      - name: Build
+        run: npm run build
       - name: Unit tests
         run: npm test
       - name: Install Playwright browser

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseFlow } from './parse'
+import { parseFlow } from './parse.js'
 
 describe('parseFlow', () => {
 	it('parses a config header and steps', () => {

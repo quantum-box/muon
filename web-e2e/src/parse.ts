@@ -6,7 +6,7 @@ import {
 	type SelectorSpec,
 	type Step,
 	type StepBase,
-} from './types'
+} from './types.js'
 
 const SELECTOR_KEYS = [
 	'text',

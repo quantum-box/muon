@@ -1,8 +1,8 @@
 import path from 'node:path'
 import { test } from '@playwright/test'
-import { runFlow } from './executor'
-import { collectFlowFiles, loadFlowFile } from './files'
-import { FlowError } from './types'
+import { runFlow } from './executor.js'
+import { collectFlowFiles, loadFlowFile } from './files.js'
+import { FlowError } from './types.js'
 
 export interface DefineWebFlowsOptions {
 	/**

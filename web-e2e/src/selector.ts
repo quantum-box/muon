@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { FlowError, type SelectorSpec } from './types'
+import { FlowError, type SelectorSpec } from './types.js'
 
 // [\s\S] rather than the `s` flag: consumers may target below es2018.
 const REGEX_PATTERN = /^\/([\s\S]+)\/([gimsuy]*)$/

@@ -1,4 +1,4 @@
-import { FlowError } from './types'
+import { FlowError } from './types.js'
 
 const VAR_PATTERN = /\$\{([A-Za-z0-9_.]+)\}/g
 

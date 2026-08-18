@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import { collectFlowFiles, loadFlowFile } from './files'
+import { collectFlowFiles, loadFlowFile } from './files.js'
 
 const root = mkdtempSync(path.join(tmpdir(), 'muon-web-e2e-'))
 afterAll(() => rmSync(root, { recursive: true, force: true }))

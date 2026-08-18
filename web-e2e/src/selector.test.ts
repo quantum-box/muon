@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { describeSelector, toTextMatch } from './selector'
+import { describeSelector, toTextMatch } from './selector.js'
 
 describe('toTextMatch', () => {
 	it('keeps plain strings as substring matches', () => {
