@@ -2,7 +2,7 @@ apiVersion: apps.tachy.one/v1alpha
 kind: ComputeApp
 metadata:
   name: muon-platform
-  tenantId: tn_01hjryxysgey07h5jz5wagqj0m
+  tenantId: tn_01m2aam6mcq85h03j3fscq7bvj
 spec:
   envVars:
     - name: DATABASE_URL
