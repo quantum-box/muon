@@ -2,6 +2,11 @@
 
 Declarative API scenario testing framework written in Rust. Supports both YAML and Markdown formats.
 
+## Development
+
+The project uses Rust `nightly-2026-06-04`, pinned in `rust-toolchain.toml`.
+Run `cargo check` and `cargo fmt --all -- --check` from this directory.
+
 ## Features
 
 - **YAML-based declarative test definitions** - Write API tests as simple YAML files
