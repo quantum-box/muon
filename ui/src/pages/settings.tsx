@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Settings as SettingsIcon,
   Clock,
@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { type AppSettings, getSettings, saveSettings } from '../lib/tauri-api'
+import { type SignedInUser, fetchSignedInUser, logout } from '../lib/api-auth'
 import { SHORTCUT_REFERENCE } from '../hooks/use-keyboard-shortcuts'
 
 type SettingsTab = 'general' | 'shortcuts' | 'about'
@@ -20,6 +21,11 @@ export function SettingsPage() {
   const [newHeaderKey, setNewHeaderKey] = useState('')
   const [newHeaderValue, setNewHeaderValue] = useState('')
   const [saved, setSaved] = useState(false)
+  const [user, setUser] = useState<SignedInUser | null>(null)
+
+  useEffect(() => {
+    fetchSignedInUser().then(setUser)
+  }, [])
 
   function handleSave(updated: AppSettings) {
     setSettings(updated)
@@ -136,10 +142,25 @@ export function SettingsPage() {
                 </div>
               </Section>
 
+              {/* Account */}
+              {user && (
+                <Section title="Account" description="Signed in with Tachyon">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-slate-200">{user.email ?? user.sub}</span>
+                    <button
+                      onClick={() => logout()}
+                      className="px-3 py-1.5 rounded-md text-sm border border-slate-700/50 text-slate-300 hover:border-slate-600"
+                    >
+                      Sign out
+                    </button>
+                  </div>
+                </Section>
+              )}
+
               {/* API token */}
               <Section
                 title="API Token"
-                description="Bearer token for a muon server started with MUON_API_TOKEN"
+                description="Bearer token for a muon server started with MUON_API_TOKEN (not needed when signed in with Tachyon)"
               >
                 <input
                   type="password"

@@ -580,6 +580,26 @@ fn serve_requires_token(host: &str, on_lambda: bool) -> bool {
     }
 }
 
+/// Choose the API policy. A server reachable from outside with no way to
+/// authenticate still starts (so health checks pass), but refuses every
+/// API request until Tachyon login or `MUON_API_TOKEN` is configured.
+fn serve_security(
+    api_token: Option<String>,
+    login: Option<std::sync::Arc<server::tachyon_login::TachyonLogin>>,
+    reachable_from_outside: bool,
+) -> server::security::ServeSecurity {
+    let security = server::security::ServeSecurity::new(api_token, login);
+    if reachable_from_outside && !security.requires_token() {
+        tracing::warn!(
+            "muon serve is reachable from outside but neither Tachyon login \
+             (TACHYON_ISSUER, TACHYON_CLIENT_ID, TACHYON_CLIENT_SECRET) nor \
+             MUON_API_TOKEN is set; the API is locked"
+        );
+        return server::security::ServeSecurity::locked();
+    }
+    security
+}
+
 /// Start the muon web server in serve mode.
 async fn start_serve(options: ServeOptions) -> Result<()> {
     let ServeOptions {
@@ -590,16 +610,13 @@ async fn start_serve(options: ServeOptions) -> Result<()> {
         open,
         queue_url,
     } = options;
-    let security =
-        server::security::ServeSecurity::with_api_token(api_token);
-    if serve_requires_token(&host, detected_lambda_env_var().is_some())
-        && !security.requires_token()
-    {
-        return Err(anyhow!(
-            "MUON_API_TOKEN is required when serving on {host} or on \
-             Lambda; set it, or bind {DEFAULT_SERVE_HOST} for local use"
-        ));
-    }
+    let login = server::tachyon_login::TachyonLogin::from_env()?
+        .map(std::sync::Arc::new);
+    let security = serve_security(
+        api_token,
+        login,
+        serve_requires_token(&host, detected_lambda_env_var().is_some()),
+    );
 
     let scenario_dir = resolve_scenario_dir(scenario_path);
     if !scenario_dir.exists() {
@@ -892,6 +909,15 @@ mod tests {
         );
 
         assert!(matches!(command, Command::Run));
+    }
+
+    #[test]
+    fn unauthenticated_outside_server_is_locked_not_refused() {
+        assert!(!serve_security(None, None, true).requires_token());
+        assert!(
+            serve_security(Some("t".into()), None, true).requires_token()
+        );
+        assert!(!serve_security(None, None, false).requires_token());
     }
 
     #[test]

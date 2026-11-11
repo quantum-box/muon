@@ -12,6 +12,7 @@ pub mod routes;
 pub mod security;
 pub mod sse;
 pub mod state;
+pub mod tachyon_login;
 pub mod validation;
 pub mod watcher;
 
@@ -43,6 +44,7 @@ pub fn create_router_with_security(
     state: Arc<AppState>,
     security: ServeSecurity,
 ) -> Router {
+    let login = security.login();
     let api = Router::new()
         .merge(routes::api_routes())
         .merge(environments::env_routes())
@@ -59,6 +61,7 @@ pub fn create_router_with_security(
         .route("/health", get(health))
         .nest("/api", api)
         .with_state(state)
+        .merge(tachyon_login::login_routes(login))
         .fallback(static_handler)
 }
 
@@ -182,6 +185,98 @@ mod tests {
             )
             .await,
             StatusCode::BAD_REQUEST
+        );
+    }
+
+    fn login_security() -> ServeSecurity {
+        ServeSecurity::new(
+            None,
+            Some(Arc::new(
+                tachyon_login::TachyonLogin::new(
+                    "https://api.example.test".into(),
+                    "client-1".into(),
+                    "secret-1".into(),
+                    None,
+                )
+                .unwrap(),
+            )),
+        )
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn api_accepts_a_login_session_and_points_others_to_login() {
+        let security = login_security();
+        let cookie = security.login().unwrap().test_session_cookie("us_1");
+        let response = router(security.clone())
+            .oneshot(validate(&[]))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        let body = axum::body::to_bytes(response.into_body(), 4096)
+            .await
+            .unwrap();
+        let body: serde_json::Value =
+            serde_json::from_slice(&body).unwrap();
+        assert_eq!(body["login_url"], "/.tachyon/auth/login");
+        assert_ne!(
+            status(router(security), validate(&[("cookie", &cookie)]))
+                .await,
+            StatusCode::UNAUTHORIZED
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn login_redirects_to_tachyon_with_pkce() {
+        let request = Request::get("/.tachyon/auth/login?return_to=/runs")
+            .header("host", "muon.example.test")
+            .body(Body::empty())
+            .unwrap();
+        let response =
+            router(login_security()).oneshot(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::FOUND);
+        let location = response.headers()["location"].to_str().unwrap();
+        let url = url::Url::parse(location).unwrap();
+        assert_eq!(
+            url.origin().ascii_serialization(),
+            "https://api.example.test"
+        );
+        assert_eq!(url.path(), "/oauth2/authorize");
+        let q: std::collections::HashMap<_, _> =
+            url.query_pairs().collect();
+        assert_eq!(q["client_id"], "client-1");
+        assert_eq!(q["code_challenge_method"], "S256");
+        assert_eq!(
+            q["redirect_uri"],
+            "https://muon.example.test/.tachyon/auth/callback"
+        );
+        assert!(!q["state"].is_empty() && !q["code_challenge"].is_empty());
+        let cookie = response.headers()["set-cookie"].to_str().unwrap();
+        assert!(cookie.starts_with("muon_login_flow="));
+        assert!(cookie.contains("HttpOnly") && cookie.contains("Secure"));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn callback_without_matching_flow_is_refused() {
+        let request =
+            Request::get("/.tachyon/auth/callback?code=c&state=s")
+                .header("host", "muon.example.test")
+                .body(Body::empty())
+                .unwrap();
+        assert_eq!(
+            status(router(login_security()), request).await,
+            StatusCode::BAD_REQUEST
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn login_routes_are_absent_without_configuration() {
+        let request = Request::get("/.tachyon/auth/me")
+            .header("host", "127.0.0.1:9800")
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(
+            status(router(ServeSecurity::default()), request).await,
+            StatusCode::NOT_FOUND
         );
     }
 }
