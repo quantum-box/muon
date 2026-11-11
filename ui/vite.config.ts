@@ -20,7 +20,9 @@ export default defineConfig({
       : {
           '/api': {
             target: 'http://localhost:9800',
-            changeOrigin: true,
+            // Keep the browser's Host so the server's same-origin check
+            // accepts proxied requests.
+            changeOrigin: false,
           },
         },
   },

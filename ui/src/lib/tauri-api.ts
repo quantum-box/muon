@@ -83,6 +83,7 @@ export async function openProjectDialog(): Promise<string | null> {
 // --- Tauri IPC commands: Scenario operations ---
 
 import type { ScenarioSummary, ScenarioDetail } from './types'
+import { apiFetch } from './api-auth'
 
 export async function tauriListScenarios(path: string): Promise<ScenarioSummary[]> {
   const invoke = await getInvoke()
@@ -113,7 +114,7 @@ export async function tauriImportPostman(
 		const invoke = await getInvoke()
 		return invoke('import_postman', { data })
 	}
-	const res = await fetch('/api/import/postman', {
+	const res = await apiFetch('/api/import/postman', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ data }),
@@ -129,7 +130,7 @@ export async function tauriImportCurl(
 		const invoke = await getInvoke()
 		return invoke('import_curl', { curl })
 	}
-	const res = await fetch('/api/import/curl', {
+	const res = await apiFetch('/api/import/curl', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ curl }),
@@ -145,7 +146,7 @@ export async function tauriImportOpenapi(
 		const invoke = await getInvoke()
 		return invoke('import_openapi', { source })
 	}
-	const res = await fetch('/api/import/openapi', {
+	const res = await apiFetch('/api/import/openapi', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ source }),
@@ -379,6 +380,8 @@ export interface AppSettings {
 	default_timeout: number
 	default_headers: Record<string, string>
 	sidebar_collapsed: boolean
+	/** Bearer token for a `muon serve` instance that requires one. */
+	api_token: string
 }
 
 const SETTINGS_KEY = 'muon_settings'
@@ -388,6 +391,7 @@ const DEFAULT_SETTINGS: AppSettings = {
 	default_timeout: 30,
 	default_headers: {},
 	sidebar_collapsed: false,
+	api_token: '',
 }
 
 export function getSettings(): AppSettings {

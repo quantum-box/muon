@@ -241,6 +241,46 @@ steps:
 
 See [docs/markdown-guide.md](docs/markdown-guide.md) for detailed conversion guidelines.
 
+## Web UI server (`muon serve`)
+
+`muon serve` starts the REST API and web UI. Its API can create and run
+scenarios that send requests to arbitrary URLs, so it is locked down by
+default:
+
+- It binds `127.0.0.1:9800`, and on loopback the API needs no login.
+  Use `--host` (or `MUON_HOST`) to bind another address.
+- Browser requests from another origin are always rejected, and no CORS
+  headers are sent.
+- When the server is reachable from outside (a non-loopback address, or
+  Lambda, whose web adapter publishes the loopback listener), every
+  `/api` request must be signed in with Tachyon or carry
+  `MUON_API_TOKEN`. If neither is configured the server still starts so
+  health checks pass, but the API answers `503` until it is.
+
+### Tachyon login
+
+Set the confidential OAuth2 client the Cloud App SDK uses:
+
+| Variable | Value |
+| --- | --- |
+| `TACHYON_ISSUER` | e.g. `https://api.n1.tachy.one` |
+| `TACHYON_CLIENT_ID` / `TACHYON_CLIENT_SECRET` | an OAuth2 client with grant `authorization_code`, scopes `openid email profile`, redirect URI `https://<host>/.tachyon/auth/callback` |
+| `MUON_PUBLIC_URL` (optional) | the public base URL, when it differs from the request `Host` |
+
+Users who open the UI are sent to Tachyon to sign in and come back with a
+signed, HttpOnly session cookie (8 hours). Only members of the client's
+tenant can complete the login. Settings shows the signed-in account and
+a sign-out button.
+
+### API token
+
+`MUON_API_TOKEN` is for scripts and CI (for example the deploy-complete
+hook): send `Authorization: Bearer <token>`.
+
+```bash
+MUON_API_TOKEN="$(openssl rand -hex 32)" muon serve --host 0.0.0.0 --port 8080
+```
+
 ## GitHub Action
 
 Use muon in your CI pipelines:

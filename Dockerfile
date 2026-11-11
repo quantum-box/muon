@@ -13,4 +13,7 @@ RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/
 COPY --from=builder /app/target/release/muon /usr/local/bin/
 ENV PORT=8080
 EXPOSE 8080
-CMD ["muon", "serve", "--port", "8080"]
+# Binding all interfaces requires Tachyon login (TACHYON_ISSUER,
+# TACHYON_CLIENT_ID, TACHYON_CLIENT_SECRET) or MUON_API_TOKEN at runtime;
+# without either the API stays locked.
+CMD ["muon", "serve", "--host", "0.0.0.0", "--port", "8080"]

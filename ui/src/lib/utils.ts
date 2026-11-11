@@ -34,8 +34,22 @@ export function formatJson(value: unknown): string {
   return JSON.stringify(value, null, 2)
 }
 
+/** Escape text so it can be inserted into HTML as character data. */
+export function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+/**
+ * Return syntax-highlighted HTML for display via `dangerouslySetInnerHTML`.
+ *
+ * The input is untrusted (response and request bodies), so it is escaped
+ * first; only the highlight spans added here are markup.
+ */
 export function highlightJson(json: string): string {
-  return json.replace(
+  return escapeHtml(json).replace(
     /("(?:\\.|[^"\\])*")\s*:/g,
     '<span class="json-key">$1</span>:',
   ).replace(
