@@ -19,6 +19,7 @@ pub struct ServeSecurity {
     api_token: Option<String>,
     login: Option<Arc<TachyonLogin>>,
     locked: bool,
+    public_origin: Option<String>,
 }
 
 impl ServeSecurity {
@@ -38,7 +39,16 @@ impl ServeSecurity {
             api_token: token.filter(|t| !t.is_empty()),
             login,
             locked: false,
+            public_origin: None,
         }
+    }
+
+    /// Also accept browser requests from `public_url`'s origin. Needed
+    /// behind a proxy that rewrites `Host` (txcloud-proxy sends the Lambda
+    /// URL host), where the public origin never equals `Host`.
+    pub fn with_public_url(mut self, public_url: Option<&str>) -> Self {
+        self.public_origin = public_url.and_then(origin_of);
+        self
     }
 
     /// Policy that refuses every API request. Used when the server is
@@ -61,7 +71,7 @@ impl ServeSecurity {
     }
 
     fn check(&self, headers: &HeaderMap) -> Result<(), StatusCode> {
-        if is_cross_origin(headers) {
+        if is_cross_origin(headers, self.public_origin.as_deref()) {
             return Err(StatusCode::FORBIDDEN);
         }
         if self.locked {
@@ -109,7 +119,10 @@ pub async fn guard(
 /// `Origin` does not name the host it was sent to. Requests without an
 /// `Origin` (CLI tools, server-to-server hooks) are not browser
 /// cross-site requests and are left to the token check.
-pub(crate) fn is_cross_origin(headers: &HeaderMap) -> bool {
+pub(crate) fn is_cross_origin(
+    headers: &HeaderMap,
+    public_origin: Option<&str>,
+) -> bool {
     if headers
         .get("sec-fetch-site")
         .and_then(|v| v.to_str().ok())
@@ -120,12 +133,20 @@ pub(crate) fn is_cross_origin(headers: &HeaderMap) -> bool {
     let Some(origin) = headers.get(header::ORIGIN) else {
         return false;
     };
+    let Some(origin) = origin.to_str().ok() else {
+        return true;
+    };
+    if public_origin.is_some_and(|public| {
+        origin_of(origin).is_some_and(|o| o.eq_ignore_ascii_case(public))
+    }) {
+        return false;
+    }
     let Some(host) =
         headers.get(header::HOST).and_then(|v| v.to_str().ok())
     else {
         return true;
     };
-    match origin.to_str().ok().and_then(|o| url::Url::parse(o).ok()) {
+    match url::Url::parse(origin).ok() {
         Some(url) => {
             let origin_host = match (url.host_str(), url.port()) {
                 (Some(h), Some(p)) => format!("{h}:{p}"),
@@ -136,6 +157,13 @@ pub(crate) fn is_cross_origin(headers: &HeaderMap) -> bool {
         }
         None => true,
     }
+}
+
+/// `scheme://host[:port]` of a URL, or `None` when it has no host.
+pub(crate) fn origin_of(url: &str) -> Option<String> {
+    let url = url::Url::parse(url).ok()?;
+    url.host_str()?;
+    Some(url.origin().ascii_serialization())
 }
 
 fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
@@ -203,6 +231,22 @@ mod tests {
             ("authorization", "Bearer s3cret-token"),
         ]);
         assert_eq!(sec.check(&h), Ok(()));
+    }
+
+    #[test]
+    fn accepts_the_public_origin_behind_a_host_rewriting_proxy() {
+        let sec = ServeSecurity::default()
+            .with_public_url(Some("https://muon.example/"));
+        let h = headers(&[
+            ("host", "abc.lambda-url.ap-northeast-1.on.aws"),
+            ("origin", "https://muon.example"),
+        ]);
+        assert_eq!(sec.check(&h), Ok(()));
+        let h = headers(&[
+            ("host", "abc.lambda-url.ap-northeast-1.on.aws"),
+            ("origin", "https://evil.example"),
+        ]);
+        assert_eq!(sec.check(&h), Err(StatusCode::FORBIDDEN));
     }
 
     #[test]

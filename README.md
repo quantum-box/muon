@@ -265,7 +265,7 @@ Set the confidential OAuth2 client the Cloud App SDK uses:
 | --- | --- |
 | `TACHYON_ISSUER` | e.g. `https://api.n1.tachy.one` |
 | `TACHYON_CLIENT_ID` / `TACHYON_CLIENT_SECRET` | an OAuth2 client with grant `authorization_code`, scopes `openid email profile`, redirect URI `https://<host>/.tachyon/auth/callback` |
-| `MUON_PUBLIC_URL` (optional) | the public base URL, when it differs from the request `Host` |
+| `MUON_PUBLIC_URL` | the public base URL. Set it behind a proxy that rewrites `Host` (such as txcloud-proxy in front of Lambda): it is used for the redirect URI and accepted as a same-origin `Origin` |
 
 Users who open the UI are sent to Tachyon to sign in and come back with a
 signed, HttpOnly session cookie (8 hours). Only members of the client's

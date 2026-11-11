@@ -588,14 +588,19 @@ fn serve_security(
     login: Option<std::sync::Arc<server::tachyon_login::TachyonLogin>>,
     reachable_from_outside: bool,
 ) -> server::security::ServeSecurity {
-    let security = server::security::ServeSecurity::new(api_token, login);
+    let public_url = std::env::var("MUON_PUBLIC_URL")
+        .ok()
+        .filter(|url| !url.is_empty());
+    let security = server::security::ServeSecurity::new(api_token, login)
+        .with_public_url(public_url.as_deref());
     if reachable_from_outside && !security.requires_token() {
         tracing::warn!(
             "muon serve is reachable from outside but neither Tachyon login \
              (TACHYON_ISSUER, TACHYON_CLIENT_ID, TACHYON_CLIENT_SECRET) nor \
              MUON_API_TOKEN is set; the API is locked"
         );
-        return server::security::ServeSecurity::locked();
+        return server::security::ServeSecurity::locked()
+            .with_public_url(public_url.as_deref());
     }
     security
 }
