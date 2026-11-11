@@ -13,4 +13,5 @@ RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/
 COPY --from=builder /app/target/release/muon /usr/local/bin/
 ENV PORT=8080
 EXPOSE 8080
-CMD ["muon", "serve", "--port", "8080"]
+# Binding all interfaces requires MUON_API_TOKEN at runtime.
+CMD ["muon", "serve", "--host", "0.0.0.0", "--port", "8080"]

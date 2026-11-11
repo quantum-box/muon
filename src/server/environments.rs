@@ -21,7 +21,7 @@ pub fn env_routes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/environments", get(list_environments))
         .route(
-            "/environments/{name}",
+            "/environments/:name",
             get(get_environment)
                 .put(save_environment)
                 .delete(delete_environment),
@@ -47,6 +47,18 @@ struct EnvironmentPayload {
 }
 
 /// Resolve the environments directory from app state.
+/// Path of the file for environment `name`, or `None` when the name
+/// could leave the environments directory. Names are limited to ASCII
+/// letters, digits, `-` and `_`.
+fn env_file_path(state: &AppState, name: &str) -> Option<PathBuf> {
+    let valid = !name.is_empty()
+        && name.len() <= 128
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_');
+    valid.then(|| env_dir(state).join(format!("{name}.yaml")))
+}
+
 fn env_dir(state: &AppState) -> PathBuf {
     // Walk up from scenario_dir to project root, then
     // into .muon/environments/
@@ -87,7 +99,8 @@ async fn get_environment(
     State(state): State<Arc<AppState>>,
     Path(name): Path<String>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let path = env_dir(&state).join(format!("{name}.yaml"));
+    let path =
+        env_file_path(&state, &name).ok_or(StatusCode::BAD_REQUEST)?;
     let content = std::fs::read_to_string(&path)
         .map_err(|_| StatusCode::NOT_FOUND)?;
     let env: EnvironmentFile =
@@ -105,6 +118,8 @@ async fn save_environment(
     Path(name): Path<String>,
     Json(payload): Json<EnvironmentPayload>,
 ) -> Result<impl IntoResponse, StatusCode> {
+    let path =
+        env_file_path(&state, &name).ok_or(StatusCode::BAD_REQUEST)?;
     let dir = env_dir(&state);
     std::fs::create_dir_all(&dir).map_err(|e| {
         error!("Failed to create environments dir: {}", e);
@@ -122,7 +137,6 @@ async fn save_environment(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    let path = dir.join(format!("{name}.yaml"));
     let is_new = !path.exists();
 
     std::fs::write(&path, &yaml).map_err(|e| {
@@ -143,7 +157,8 @@ async fn delete_environment(
     State(state): State<Arc<AppState>>,
     Path(name): Path<String>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let path = env_dir(&state).join(format!("{name}.yaml"));
+    let path =
+        env_file_path(&state, &name).ok_or(StatusCode::BAD_REQUEST)?;
 
     if !path.exists() {
         return Err(StatusCode::NOT_FOUND);

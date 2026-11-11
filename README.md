@@ -241,6 +241,25 @@ steps:
 
 See [docs/markdown-guide.md](docs/markdown-guide.md) for detailed conversion guidelines.
 
+## Web UI server (`muon serve`)
+
+`muon serve` starts the REST API and web UI. Its API can create and run
+scenarios that send requests to arbitrary URLs, so it is locked down by
+default:
+
+- It binds `127.0.0.1:9800`. Use `--host` (or `MUON_HOST`) to bind
+  another address.
+- Binding a non-loopback address, or running on Lambda, requires a bearer
+  token in `MUON_API_TOKEN`. Every `/api` request must then send
+  `Authorization: Bearer <token>`; enter the token under Settings in the
+  UI. `/health` stays open.
+- Browser requests from another origin are rejected, and no CORS headers
+  are sent.
+
+```bash
+MUON_API_TOKEN="$(openssl rand -hex 32)" muon serve --host 0.0.0.0 --port 8080
+```
+
 ## GitHub Action
 
 Use muon in your CI pipelines:

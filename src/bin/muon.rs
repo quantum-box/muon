@@ -20,6 +20,7 @@ use tracing::{debug, error, info};
 use tracing_subscriber::{fmt, EnvFilter};
 
 const DEFAULT_SERVE_PORT: u16 = 9800;
+const DEFAULT_SERVE_HOST: &str = "127.0.0.1";
 const LAMBDA_ENV_VARS: [&str; 3] =
     ["AWS_LAMBDA_FUNCTION_NAME", "LAMBDA_TASK_ROOT", "_HANDLER"];
 
@@ -107,6 +108,18 @@ enum Command {
         /// Port to listen on.
         #[arg(long, default_value = "9800", env = "PORT")]
         port: u16,
+        /// Address to bind. A non-loopback address requires an API
+        /// token.
+        #[arg(long, default_value = DEFAULT_SERVE_HOST, env = "MUON_HOST")]
+        host: String,
+        /// Bearer token required on every `/api` request. Required when
+        /// binding a non-loopback address or running on Lambda.
+        #[arg(
+            long = "api-token",
+            env = "MUON_API_TOKEN",
+            hide_env_values = true
+        )]
+        api_token: Option<String>,
         /// Scenario directory path.
         #[arg(long = "scenario-path")]
         scenario_path: Option<String>,
@@ -188,6 +201,11 @@ fn resolve_command_with_lambda_env(
         );
         return Command::Serve {
             port: default_serve_port(),
+            host: std::env::var("MUON_HOST")
+                .ok()
+                .filter(|host| !host.is_empty())
+                .unwrap_or_else(|| DEFAULT_SERVE_HOST.to_string()),
+            api_token: std::env::var("MUON_API_TOKEN").ok(),
             scenario_path: None,
             open: false,
             queue_url: default_serve_queue_url(),
@@ -538,13 +556,51 @@ fn resolve_scenario_dir(path: Option<String>) -> PathBuf {
     PathBuf::from(".")
 }
 
-/// Start the muon web server in serve mode.
-async fn start_serve(
+/// Options for [`start_serve`].
+struct ServeOptions {
     port: u16,
+    host: String,
+    api_token: Option<String>,
     scenario_path: Option<String>,
     open: bool,
     queue_url: Option<String>,
-) -> Result<()> {
+}
+
+/// The serve API can run scenarios that send requests to arbitrary
+/// URLs, so it must not be reachable without a token from anywhere but
+/// this machine. On Lambda the adapter exposes a loopback listener
+/// publicly, so Lambda always needs a token too.
+fn serve_requires_token(host: &str, on_lambda: bool) -> bool {
+    if on_lambda {
+        return true;
+    }
+    match host.parse::<std::net::IpAddr>() {
+        Ok(ip) => !ip.is_loopback(),
+        Err(_) => !host.eq_ignore_ascii_case("localhost"),
+    }
+}
+
+/// Start the muon web server in serve mode.
+async fn start_serve(options: ServeOptions) -> Result<()> {
+    let ServeOptions {
+        port,
+        host,
+        api_token,
+        scenario_path,
+        open,
+        queue_url,
+    } = options;
+    let security =
+        server::security::ServeSecurity::with_api_token(api_token);
+    if serve_requires_token(&host, detected_lambda_env_var().is_some())
+        && !security.requires_token()
+    {
+        return Err(anyhow!(
+            "MUON_API_TOKEN is required when serving on {host} or on \
+             Lambda; set it, or bind {DEFAULT_SERVE_HOST} for local use"
+        ));
+    }
+
     let scenario_dir = resolve_scenario_dir(scenario_path);
     if !scenario_dir.exists() {
         return Err(anyhow!(
@@ -566,17 +622,18 @@ async fn start_serve(
     // Start file watcher
     let _watcher = server::watcher::start_watcher(state.clone()).await?;
 
-    let router = server::create_router(state);
+    let router = server::create_router_with_security(state, security);
 
-    let url = format!("http://127.0.0.1:{port}");
+    let listener =
+        tokio::net::TcpListener::bind((host.as_str(), port)).await?;
+    let local_addr = listener.local_addr()?;
+    let url = format!("http://{local_addr}");
     info!("muon server running at {}", url);
 
     if open {
         let _ = open_browser(&url);
     }
 
-    let listener =
-        tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
     axum::serve(listener, router).await?;
 
     Ok(())
@@ -665,11 +722,21 @@ async fn main() -> Result<()> {
     match resolve_command(args.command) {
         Command::Serve {
             port,
+            host,
+            api_token,
             scenario_path,
             open,
             queue_url,
         } => {
-            start_serve(port, scenario_path, open, queue_url).await?;
+            start_serve(ServeOptions {
+                port,
+                host,
+                api_token,
+                scenario_path,
+                open,
+                queue_url,
+            })
+            .await?;
         }
         Command::Worker {
             queue_url,
@@ -825,5 +892,16 @@ mod tests {
         );
 
         assert!(matches!(command, Command::Run));
+    }
+
+    #[test]
+    fn serve_requires_token_off_loopback_and_on_lambda() {
+        assert!(!serve_requires_token("127.0.0.1", false));
+        assert!(!serve_requires_token("::1", false));
+        assert!(!serve_requires_token("localhost", false));
+        assert!(serve_requires_token("0.0.0.0", false));
+        assert!(serve_requires_token("192.168.1.10", false));
+        assert!(serve_requires_token("example.com", false));
+        assert!(serve_requires_token("127.0.0.1", true));
     }
 }

@@ -136,6 +136,22 @@ export function SettingsPage() {
                 </div>
               </Section>
 
+              {/* API token */}
+              <Section
+                title="API Token"
+                description="Bearer token for a muon server started with MUON_API_TOKEN"
+              >
+                <input
+                  type="password"
+                  autoComplete="off"
+                  value={settings.api_token}
+                  onChange={(e) =>
+                    handleSave({ ...settings, api_token: e.target.value })
+                  }
+                  className="w-full max-w-md px-3 py-1.5 bg-slate-800/50 border border-slate-700/50 rounded-md text-sm text-slate-200 focus:outline-none focus:border-violet-500/50"
+                />
+              </Section>
+
               {/* Default headers */}
               <Section
                 title="Default Headers"
