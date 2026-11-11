@@ -423,7 +423,12 @@ async fn logout(
     if login.is_none() {
         return StatusCode::NOT_FOUND.into_response();
     }
-    if super::security::is_cross_origin(&headers) {
+    let public_origin = login
+        .as_ref()
+        .and_then(|l| l.public_url.as_deref())
+        .and_then(super::security::origin_of);
+    if super::security::is_cross_origin(&headers, public_origin.as_deref())
+    {
         return StatusCode::FORBIDDEN.into_response();
     }
     let secure = login
@@ -604,6 +609,28 @@ mod tests {
         assert_eq!(safe_return_to(Some("/\\evil.example")), "/");
         assert_eq!(safe_return_to(Some("https://evil.example")), "/");
         assert_eq!(safe_return_to(None), "/");
+    }
+
+    #[test]
+    fn redirect_uri_uses_public_url_over_rewritten_host() {
+        let login = TachyonLogin::new(
+            "https://api.example.test".into(),
+            "c".into(),
+            "s".into(),
+            Some("https://muon.example/".into()),
+        )
+        .unwrap();
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::HOST,
+            HeaderValue::from_static(
+                "abc.lambda-url.ap-northeast-1.on.aws",
+            ),
+        );
+        assert_eq!(
+            login.redirect_uri(&headers).as_deref(),
+            Some("https://muon.example/.tachyon/auth/callback")
+        );
     }
 
     #[test]
